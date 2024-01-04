@@ -105,13 +105,13 @@ if __name__ == '__main__':
 - `sdrf_file:` the project sdrf files folder url
 - `output_folder:` the output folder's construction:
 
-![image-20240104193044018](README.assets/image-20240104193044018.png)
-
 **usage**: 
 
 ```shell
 python mgf_converter.py 'G:\\graduation_project\\generate-spectrum-library\\PXD008934\\mztab'  'G:\\graduation_project\\generate-spectrum-library\\PXD008934\\mztab\\PXD008934.sdrf.tsv' 'G:\\graduation_project\\generate-spectrum-library\\project_folder'
 ```
+
+
 
 ### 1.2 Output the paths of clustered MGF files to a specified text file.
 
@@ -159,18 +159,16 @@ if __name__ == "__main__":
 
 **params**:
 
-- `folder:`项目文件结构
+- `folder:` project folder
 
-![image-20240104192455894](README.assets/image-20240104192455894.png)
-
-- `output_base_dir:` 你会得到聚类文件列表的txt在这个目录中：
-
-![image-20240104192729401](README.assets/image-20240104192729401.png)
+- `output_base_dir:` You will obtain a text file containing the list of clustered files in this directory.
 
 **usage**:
 
 ```shell
-python pyscript/generate_files_list.py /mnt/nfs/shupeng/generate-spectrum-library/project_folder /mnt/nfs/shupeng/generate-spectrum-library/res_output_folder/files_list_folder/
+python pyscript/generate_files_list.py \
+	/mnt/nfs/shupeng/generate-spectrum-library/project_folder 
+	/mnt/nfs/shupeng/generate-spectrum-library/res_output_folder/files_list_folder/
 
 ```
 
@@ -222,7 +220,10 @@ workflow {
 **usage**: 
 
 ```shell
-nextflow run run_maracluster.nf --files_list_folder /mnt/nfs/shupeng/generate-spectrum-library/res_output_folder/files_list_folder  --maracluster_output /mnt/nfs/shupeng/generate-spectrum-library/res_output_folder/ -with-docker biocontainers/maracluster:1.02.1_cv1
+nextflow run run_maracluster.nf \
+	--files_list_folder /mnt/nfs/shupeng/generate-spectrum-library/res_output_folder/files_list_folder  
+	--maracluster_output /mnt/nfs/shupeng/generate-spectrum-library/res_output_folder/ 
+	-with-docker biocontainers/maracluster:1.02.1_cv1
 
 ```
 
@@ -232,9 +233,7 @@ nextflow run run_maracluster.nf --files_list_folder /mnt/nfs/shupeng/generate-sp
 
    Subsequently, the script `maracluster batch -b "${fileInput}" -t -10` will be employed to obtain clustering results using MaraCluster, where "${fileInput}" represents the path to each individual text file in the workflow.
 
-- In nextflow work directoty:
-
-![image-20240104193527115](README.assets/image-20240104193527115.png)
+   
 
 
 
