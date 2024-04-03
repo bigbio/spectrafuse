@@ -23,6 +23,5 @@ Now, you can run the pipeline using:
 nextflow run run_maracluster.nf \
 	--files_list_folder <FILE_LIST_FOLER>  
 	--maracluster_output <OUTDIR> 
-	-with-docker biocontainers/maracluster:1.02.1_cv1
 ```
 
