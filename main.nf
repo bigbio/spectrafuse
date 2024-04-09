@@ -20,7 +20,7 @@ process run_maracluster {
     verbose = params.maracluster_verbose ? "-v" : ""
 
     """
-    maracluster batch -b "${file_input}" -t ${params.maracluster_pvalue_threshold} ${verbose}
+    maracluster batch -b "${file_input}" -t ${params.maracluster_pvalue_threshold} -p ${params.maracluster_precursor_tolerance} ${verbose}
     """
 }
 

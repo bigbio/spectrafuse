@@ -4,18 +4,15 @@ import numpy as np
 from constant import UseCol
 
 
-def resolve_fileLoc(root_directory: str, file_pattern: str) -> Path:
+def resolve_file_loc(root_directory: str, file_pattern: str) -> Path:
     """
-    在指定目录中返回指定文件名字的完整路径Path对象
-    :param root_directory: 目录
-    :param file_pattern: 文明名字
+    :param root_directory: root directory
+    :param file_pattern: file pattern
     :return:
     """
     root_directory = Path(root_directory)
-    # 递归搜索文件
     file_path = root_directory.rglob(file_pattern)
 
-    # 找到第一个匹配的文件并获取其绝对路径
     try:
         found_file = next(file_path)
         absolute_path = found_file.resolve()
@@ -59,7 +56,7 @@ def extract_cluster_tsv(cluster_res_path: str, pxd_folder: str):
     # 提取出mgf文件的名字,根据这个去找对应的parquet文件
     cluster_res_df['parquet_path'] = (
         cluster_res_df['mgf_path'].apply(
-            lambda x: resolve_fileLoc(pxd_folder, Path(x).parts[-1].split('_')[0] + ".parquet")))
+            lambda x: resolve_file_loc(pxd_folder, Path(x).parts[-1].split('_')[0] + ".parquet")))
 
     for path_path_str, group in cluster_res_df.groupby('parquet_path'):
         group_parquet = pd.read_parquet(path_path_str, columns=parquet_col)

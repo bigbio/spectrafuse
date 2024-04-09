@@ -4,9 +4,15 @@ import numpy as np
 import re
 from pathlib import Path
 from collections import defaultdict
-import sys
+import logging
 from constant import UseCol
+import click
 
+CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
+REVISION = "0.1.1"
+
+logging.basicConfig(format="%(asctime)s [%(funcName)s] - %(message)s", level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 class ParquetPathHandler:
     parquet_path = ""
@@ -138,7 +144,6 @@ def convert_to_mgf(parquet_path: str, sdrf_path: str, output_path: str, batch_si
                                  ['charge' + str(row["charge"]), 'mgf files']), axis=1)
 
         for group, group_df in mgf_group_df.groupby('mgf_file_path'):
-            # 为当前group创建或打开文件
             base_mgf_path = f"{res_file_path}/{group}"
             mgf_file_path = (f"{base_mgf_path}/{Path(parquet_file_path).parts[-1].split('.')[0]}_"
                              f"{relation_dict[base_mgf_path] + 1}.mgf")
@@ -148,30 +153,41 @@ def convert_to_mgf(parquet_path: str, sdrf_path: str, output_path: str, batch_si
                 with open(mgf_file_path, 'a') as f:
                     f.write('\n'.join(group_df["spectrum"]))
 
-                # 更新计数字典
                 write_count_dict[group] += group_df.shape[0]
             else:
-                # 剩余了多少容量
                 remain_num = SPECTRA_NUM - write_count_dict[group]
 
-                # 重置该group对应的计数
-                # remain的部分加入到原来的部分
                 with open(mgf_file_path, 'a') as f:
                     f.write('\n'.join(group_df.head(remain_num)["spectrum"]))
 
-                # 文件索引＋1
                 relation_dict[base_mgf_path] += 1
-                # 重置次数
+
                 write_count_dict[group] = 0
-                # 更新mgf文件地址
                 mgf_file_path = (f"{base_mgf_path}/{Path(parquet_file_path).parts[-1].split('.')[0]}_"
                                  f"{relation_dict[base_mgf_path] + 1}.mgf")
                 with open(mgf_file_path, 'a') as f:
                     f.write('\n'.join(group_df.tail(group_df.shape[0] - remain_num)["spectrum"]))
 
 
+@click.command("convert", short_help="Convert parquet files to MGF format")
+@click.option('--parquet_dir', '-p', help='The directory where the parquet files are located')
+@click.option('--sdrf_file_path', '-s', help='The path to the sdrf file')
+@click.option('--output_path', '-o', help='The output directory')
+@click.option('--batch_size', '-b', default=1000000, help='The batch size of each parquet pass')
+@click.option('--spectra_capacity', '-c', default=1000000, help='Number of spectra on each MGF file')
 def generate_mgf_files(parquet_dir: str, sdrf_file_path: str, output_path: str,
                        batch_size: int = 1000000, spectra_capacity: int = 1000000) -> None:
+    """
+    Convert all parquet files in the specified directory to MGF format. The conversion is based on the sdrf file
+    the original parquet file from the experiment.
+
+    :param parquet_dir: parquet file's path
+    :param sdrf_file_path: sdrf file's path
+    :param output_path: output directory
+    :param batch_size: batch size
+    :param spectra_capacity: spectra capacity
+    :return:
+    """
     parquet_file_path_lst = iter_parquet_dir(parquet_dir)
 
     for parquet_file_path in parquet_file_path_lst:
@@ -182,13 +198,11 @@ def generate_mgf_files(parquet_dir: str, sdrf_file_path: str, output_path: str,
     print(f"All tasks have completed...")
 
 
+@click.group(context_settings=CONTEXT_SETTINGS)
+def cli():
+    pass
+
+cli.add_command(generate_mgf_files)
+
 if __name__ == '__main__':
-    parquet_dir = sys.argv[1]
-    sdrf_file_path = sys.argv[2]
-    res_file_path = sys.argv[3]
-
-    # parquet_dir = r'G:\graduation_project\generate-spectrum-library\PXD002179'
-    # sdrf_file_path = r'G:\graduation_project\generate-spectrum-library\PXD002179\mztab\PXD002179.sdrf.tsv'
-    # res_file_path = r'G:\graduation_project\generate-spectrum-library\test\PXD002179_copy'
-
-    generate_mgf_files(parquet_dir=parquet_dir, sdrf_file_path=sdrf_file_path, output_path=res_file_path)
+    cli()
