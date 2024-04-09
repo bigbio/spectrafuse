@@ -1,9 +1,20 @@
 # spectrafuse
-Incremental clustesting pipeline from quantms data. 
 
-## Introduction
+Incremental clustering pipeline from [quantms data](quamts.org). quantms is a workflow for reanalysis of public proteomics data. The quantms not only release a workflow to the public but also perform reanalysis of public proteomics data in a systematic way for TMT, LFQ, ITRAQ and other DDA methods.
 
-Quantms, a cutting-edge workflow, has reanalyzed an extensive dataset of almost 1 billion MS/MS (Mass Spectrometry/Mass Spectrometry) scans, comprising nearly 100 million PSMs (Peptide-Spectrum Matches) derived from various tissues, cell lines, and diseases. In light of this vast wealth of data,The spectrafuse aims to apply spectral clustering techniques to organize this data and construct spectral libraries.  Spectrafuse is a Incremental  clustesting pipeline from quantms data. 
+quantms has reanalyzed an extensive number of datasets with almost 1 billion MS/MS (Mass Spectrometry/Mass Spectrometry) MS2 analyzed, comprising nearly 100 million PSMs (Peptide-Spectrum Matches) derived from various tissues, cell lines, and diseases. In light of this vast wealth of data,The spectrafuse aims to apply spectral clustering techniques to organize this data and construct spectral libraries. 
+
+[spectrafuse](https://github.com/bigbio/spectrafuse) is a nextflow workflow that perform incremental clustering of quantms and is based in the tool [MaRaCluster](https://github.com/statisticalbiotechnology/maracluster).  
+
+The workflow in a nutshell:
+
+![image](https://github.com/bigbio/spectrafuse/assets/52113/24a7c9ac-7287-421c-b8f1-6319764ed29c)
+
+Reference: https://github.com/bigbio/spectrafuse/blob/main/docs/algorithm.png
+
+The workflow is designed to be run in a high-performance computing environment, and it is built using [Nextflow](https://www.nextflow.io/). It uses Docker/Singularity containers making installation trivial and results highly reproducible. The [Nextflow DSL2](https://www.nextflow.io/docs/latest/dsl2.html) implementation of this pipeline uses one container per process which makes it much easier to maintain and update software dependencies.
+
+### Workflow steps
 
 This workflow mainly consists of the following processes:
 
