@@ -1,8 +1,5 @@
 #!/usr/bin/env nextflow.enable.dsl=2
 
-params.files_list_folder = "./"
-params.maracluster_output = "./"
-
 process run_maracluster {
     label 'process_low'
 
@@ -27,8 +24,13 @@ process run_maracluster {
     """
 }
 
+// validate the input parameters
+if (!params.maracluster_files_list_folder) {
+    error "Please provide a folder containing the files that will be clustered"
+}
+
 workflow {
-    file_list = Channel.fromPath("${params.files_list_folder}/files_list_*.txt")
+    file_list = Channel.fromPath("${params.maracluster_files_list_folder}/files_list_*.txt")
     file_list.view()
     run_maracluster(file_list)
 }
