@@ -20,7 +20,7 @@ First, you should generate a flat text file directory containing the absolute/re
 Now, you can run the pipeline using:
 
 ```shell
-nextflow run run_maracluster.nf \
+nextflow run main.nf \
 	--files_list_folder <FILE_LIST_FOLER>  
 	--maracluster_output <OUTDIR> 
 ```
