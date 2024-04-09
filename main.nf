@@ -2,7 +2,6 @@
 
 params.files_list_folder = "./"
 params.maracluster_output = "./"
-params.pvalue = "-5.0"
 
 process run_maracluster {
     label 'process_low'
@@ -20,13 +19,16 @@ process run_maracluster {
     path "maracluster_output/*.tsv", emit: maracluster_results
 
     script:
+
+    verbose = params.maracluster_verbose ? "-v" : ""
+
     """
-    maracluster batch -b "${file_input}" -t ${params.pvalue}
+    maracluster batch -b "${file_input}" -t ${params.maracluster_pvalue_threshold} ${verbose}
     """
 }
 
 workflow {
     file_list = Channel.fromPath("${params.files_list_folder}/files_list_*.txt")
     file_list.view()
-    runMaRaCluster(file_list)
+    run_maracluster(file_list)
 }
