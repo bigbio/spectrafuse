@@ -30,6 +30,17 @@ class ParquetPathHandler:
     def get_item_info(self) -> str:
         return self.path_obj.parts[-1].split('-')[0]
 
+def get_sdrf_file_path(folder: str) -> str:
+    """
+    get sdrf file path in project folder
+    :param folder: project folder obtain project files to cluster
+    """
+    directory_path = Path(folder)
+    files = directory_path.rglob('*.sdrf.tsv')
+    try:
+        return str(next(files))
+    except StopIteration:
+        raise FileNotFoundError(f'There is no sdrf file in {folder}')
 
 def read_sdrf(sdrf_folder: str) -> dict:
     """
@@ -45,8 +56,9 @@ def read_sdrf(sdrf_folder: str) -> dict:
         print(f'{sdrf_folder} file has some format error, please check the col index format.')
 
     sdrf_feature_df['comment[data file]'] = sdrf_feature_df['comment[data file]'].apply(lambda x: x.split('.')[0])
-    sdrf_feature_df['comment[instrument]'] = sdrf_feature_df[
-        'comment[instrument]'].apply(lambda x: re.search(r'=(.*)', x.split(';')[0]).group(1))
+    sdrf_feature_df['comment[instrument]'] = sdrf_feature_df['comment[instrument]'].apply(
+                    lambda x: re.search(r'=(.*)', [i for i in x.split(';') if i.startswith("NT=")].pop()).group(1))
+
     sdrf_feature_df['organism_instrument'] = sdrf_feature_df[
         ['characteristics[organism]', 'comment[instrument]']].apply(lambda x: list(x), axis=1)
     sample_info_dict = sdrf_feature_df.set_index('comment[data file]')['organism_instrument'].to_dict()
@@ -61,7 +73,7 @@ def get_spectrum(row, dataset_id: str):
                f'PEPMASS={str(row["exp_mass_to_charge"])}\n'  # pepmass
                f'CHARGE={str(row["charge"])}+\n'  # charge
                f'{get_mz_intensity_str(row["mz_array"], row["intensity_array"])}\n'  # mz and intensity
-               f'END IONS'  # end
+               f'END IONS\n'  # end
                )
 
     return res_str
@@ -106,12 +118,11 @@ def iter_parquet_dir(dir_path: str) -> list:
     return parquet_path_lst
 
 
-def convert_to_mgf(parquet_path: str, sdrf_path: str, output_path: str, batch_size, spectra_capacity) -> None:
+def convert_to_mgf(parquet_path: str, sdrf_path: str, output_path: str, batch_size: int, spectra_capacity: int) -> None:
     """
      A single parquet file is read in blocks, and then grouped by species, instrument, charge,
      and converted to parquet files
     :param parquet_path: The full path to the parquet file
-    :param sdrf_path:The sdrf metadata file for the project
     :param output_path: output dir
     :param batch_size: default size is 60000
     :param spectra_capacity: default size is 1000000
@@ -120,6 +131,8 @@ def convert_to_mgf(parquet_path: str, sdrf_path: str, output_path: str, batch_si
     parquet_file_path = parquet_path
     sdrf_file_path = sdrf_path
     res_file_path = output_path
+
+    Path(res_file_path).mkdir(parents=True, exist_ok=True)
 
     basename = ParquetPathHandler(parquet_path).get_item_info()
 
@@ -171,12 +184,11 @@ def convert_to_mgf(parquet_path: str, sdrf_path: str, output_path: str, batch_si
 
 @click.command("convert", short_help="Convert parquet files to MGF format")
 @click.option('--parquet_dir', '-p', help='The directory where the parquet files are located')
-@click.option('--sdrf_file_path', '-s', help='The path to the sdrf file')
-@click.option('--output_path', '-o', help='The output directory')
-@click.option('--batch_size', '-b', default=1000000, help='The batch size of each parquet pass')
+# @click.option('--sdrf_file_path', '-s', help='The path to the sdrf file')
+# @click.option('--output_path', '-o', help='The output directory')
+@click.option('--batch_size', '-b', default=100000, help='The batch size of each parquet pass')
 @click.option('--spectra_capacity', '-c', default=1000000, help='Number of spectra on each MGF file')
-def generate_mgf_files(parquet_dir: str, sdrf_file_path: str, output_path: str,
-                       batch_size: int = 1000000, spectra_capacity: int = 1000000) -> None:
+def generate_mgf_files(parquet_dir: str, batch_size: int = 100000, spectra_capacity: int = 1000000) -> None:
     """
     Convert all parquet files in the specified directory to MGF format. The conversion is based on the sdrf file
     the original parquet file from the experiment.
@@ -189,11 +201,12 @@ def generate_mgf_files(parquet_dir: str, sdrf_file_path: str, output_path: str,
     :return:
     """
     parquet_file_path_lst = iter_parquet_dir(parquet_dir)
+    sdrf_file_path = get_sdrf_file_path(parquet_dir)
+    res_file_path = parquet_dir + '/mgf_output'
 
     for parquet_file_path in parquet_file_path_lst:
         print(f"Converting {Path(parquet_file_path).parts[-1]} files to MGF format...")
-        convert_to_mgf(parquet_file_path, sdrf_file_path, output_path,
-                       batch_size=batch_size, spectra_capacity=spectra_capacity)
+        convert_to_mgf(parquet_path=parquet_file_path,sdrf_path=sdrf_file_path ,output_path=res_file_path, batch_size=batch_size, spectra_capacity=spectra_capacity)
 
     print(f"All tasks have completed...")
 
