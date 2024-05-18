@@ -10,14 +10,6 @@ nextflow.enable.dsl=2
 process generate_mgf_files{
     label 'process_low'
 
-    // Here we have to define a container that have all the dependencies needed by quantmsio2mgf
-    // conda "conda-forge::pandas_schema conda-forge::lzstring bioconda::pmultiqc=0.0.21"
-//     if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {
-//         container "https://depot.galaxyproject.org/singularity/pmultiqc:0.0.22--pyhdfd78af_0"
-//     } else {
-//         container "quay.io/biocontainers/pmultiqc:0.0.22--pyhdfd78af_0"
-//     }
-
     input:
     path file_input
 
@@ -110,6 +102,5 @@ workflow {
 
     run_maracluster(splitFiles)
 
-    //TODO: Filtering is performed in the maracluster channel
     }
 
