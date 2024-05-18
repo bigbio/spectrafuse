@@ -1,4 +1,6 @@
-#!/usr/bin/env nextflow.enable.dsl=2
+#!/usr/bin/env
+
+nextflow.enable.dsl=2
 
 // This process needs a lot of work, first we need to capture all the project folders that will contains a parquet
 // file and a sdrf file. Then independently we will run this process before the maracluster process for every project folder.
@@ -10,11 +12,12 @@ process generate_mgf_files{
 
     // Here we have to define a container that have all the dependencies needed by quantmsio2mgf
     // conda "conda-forge::pandas_schema conda-forge::lzstring bioconda::pmultiqc=0.0.21"
-    // if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {
-    //     container "https://depot.galaxyproject.org/singularity/pmultiqc:0.0.22--pyhdfd78af_0"
-    // } else {
-    //     container "biocontainers/pmultiqc:0.0.22--pyhdfd78af_0"
-    // }
+//     if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {
+//         container "https://depot.galaxyproject.org/singularity/pmultiqc:0.0.22--pyhdfd78af_0"
+//     } else {
+//         container "quay.io/biocontainers/pmultiqc:0.0.22--pyhdfd78af_0"
+//     }
+
     input:
     path file_input
 
@@ -26,7 +29,7 @@ process generate_mgf_files{
     verbose = params.mgf_verbose ? "-v" : ""
 
     """
-    python /mnt/nfs/shupeng/spectrafuse/bin/quantmsio2mgf.py convert --parquet_dir "${file_input}"
+    quantmsio2mgf.py convert --parquet_dir "${file_input}"
     """
 }
 
@@ -37,10 +40,10 @@ process run_maracluster {
     // publishDir "${parquet_dir}/${mgf_files_dir}/", mode: 'copy', overwrite: false, emitDirs: true
 
     if (workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container) {
-        container 'https://containers.biocontainers.pro/s3/SingImgsRepo/maracluster/1.02.1_cv1/maracluster:1.02.1_cv1'
+        container 'https://containers.biocontainers.pro/s3/SingImgsRepo/maracluster/1.02.1_cv1/maracluster:1.04.1_cv1'
     }
     else {
-        container 'biocontainers/maracluster:1.02.1_cv1'
+        container 'biocontainers/maracluster:1.04.1_cv1'
     }
 
     input:
@@ -54,8 +57,8 @@ process run_maracluster {
     verbose = params.maracluster_verbose ? "-v" : ""
 
     """
-    echo ${mgf_files_path.join('\n')} > files_list.txt
-    maracluster batch -b files_list.txt -t ${params.maracluster_pvalue_threshold} -p ${params.maracluster_precursor_tolerance} ${verbose} 
+    echo "${mgf_files_path.join('\n')}" > files_list.txt
+    maracluster batch -b files_list.txt ${verbose}
     """
 }
 
