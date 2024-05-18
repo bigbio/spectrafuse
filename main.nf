@@ -31,12 +31,10 @@ process run_maracluster {
 
     // publishDir "${parquet_dir}/${mgf_files_dir}/", mode: 'copy', overwrite: false, emitDirs: true
 
-    if (workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container) {
-        container 'https://containers.biocontainers.pro/s3/SingImgsRepo/maracluster/1.02.1_cv1/maracluster:1.04.1_cv1'
-    }
-    else {
-        container 'biocontainers/maracluster:1.04.1_cv1'
-    }
+    container "${workflow.containerEngine == 'singularity' &&
+                  !task.ext.singularity_pull_docker_container ?
+              'https://containers.biocontainers.pro/s3/SingImgsRepo/maracluster/1.02.1_cv1/maracluster:1.04.1_cv1' :
+              'biocontainers/maracluster:1.04.1_cv1' }"
 
     input:
     path mgf_files_path 
