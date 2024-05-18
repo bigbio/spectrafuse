@@ -33,7 +33,7 @@ process run_maracluster {
 
     container "${workflow.containerEngine == 'singularity' &&
                   !task.ext.singularity_pull_docker_container ?
-              'https://containers.biocontainers.pro/s3/SingImgsRepo/maracluster/1.04.1_cv1/maracluster:1.04.1_cv1' :
+              'https://containers.biocontainers.pro/s3/SingImgsRepo/maracluster/1.04.1_cv1/maracluster_1.04.1_cv1.sif' :
               'biocontainers/maracluster:1.04.1_cv1' }"
 
     input:
