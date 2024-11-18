@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import pyarrow.parquet as pq
 import pandas as pd
 import numpy as np
@@ -5,14 +8,20 @@ import re
 from pathlib import Path
 from collections import defaultdict
 import logging
-from constant import UseCol
 import click
+from enum import Enum
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 REVISION = "0.1.1"
 
 logging.basicConfig(format="%(asctime)s [%(funcName)s] - %(message)s", level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
+class UseCol(Enum):
+    PARQUET_COL_TO_MGF = ['reference_file_name', 'scan_number', 'sequence',
+                          'mz_array', 'intensity_array', 'charge', 'exp_mass_to_charge']
+    PARQUET_COL_TO_FILTER = ['posterior_error_probability', 'global_qvalue']
+    PARQUET_COL_TO_USI = ['reference_file_name', 'scan_number', 'sequence', 'charge']
 
 class ParquetPathHandler:
     parquet_path = ""
@@ -32,7 +41,7 @@ class ParquetPathHandler:
 
 def get_sdrf_file_path(folder: str) -> str:
     """
-    get sdrf file path in project folder
+    get sdrf file path in the project folder
     :param folder: project folder obtain project files to cluster
     """
     directory_path = Path(folder)

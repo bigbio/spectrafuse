@@ -137,6 +137,9 @@ venv.bak/
 
 # mkdocs documentation
 /site
+.nextflow*
+.nextflow.log*
+
 
 # mypy
 .mypy_cache/
