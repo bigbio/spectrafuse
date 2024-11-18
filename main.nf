@@ -8,13 +8,6 @@
 process generate_mgf_files{
     label 'process_low'
 
-    // Here we have to define a container that have all the dependencies needed by quantmsio2mgf
-    // conda "conda-forge::pandas_schema conda-forge::lzstring bioconda::pmultiqc=0.0.21"
-    // if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {
-    //     container "https://depot.galaxyproject.org/singularity/pmultiqc:0.0.22--pyhdfd78af_0"
-    // } else {
-    //     container "biocontainers/pmultiqc:0.0.22--pyhdfd78af_0"
-    // }
     input:
     path file_input
 
@@ -26,15 +19,15 @@ process generate_mgf_files{
     verbose = params.mgf_verbose ? "-v" : ""
 
     """
-    python /mnt/nfs/shupeng/spectrafuse/bin/quantmsio2mgf.py convert --parquet_dir "${file_input}"
+    pyspectrafuse_cli convert-mgf --parquet_dir "${file_input}"
     """
 }
 
 
-process run_maracluster {
+process run_maracluster{
     label 'process_low'
 
-    // publishDir "${parquet_dir}/${mgf_files_dir}/", mode: 'copy', overwrite: false, emitDirs: true
+    // publishDir "${params.parquet_dir}/mgf_output/", mode: 'copy', overwrite: false, emitDirs: true,  pattern: "*_p30.tsv"
 
     if (workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container) {
         container 'https://containers.biocontainers.pro/s3/SingImgsRepo/maracluster/1.02.1_cv1/maracluster:1.02.1_cv1'
@@ -44,24 +37,121 @@ process run_maracluster {
     }
 
     input:
-    path mgf_files_path 
+    tuple val(meta), path(mgf_files)
+
 
     output:
-    path "maracluster_output/*.tsv", emit: maracluster_results
-
+    tuple val(meta), path("maracluster_output/*${params.cluster_threshold}.tsv") ,emit: meta_tsv //// meta:  Homo sapiens/Q Exactive/charge2
     script:
 
-    verbose = params.maracluster_verbose ? "-v" : ""
+    verbose = params.maracluster_verbose ? "-v 3" : "-v 0"
 
     """
-    echo ${mgf_files_path.join('\n')} > files_list.txt
-    maracluster batch -b files_list.txt -t ${params.maracluster_pvalue_threshold} -p ${params.maracluster_precursor_tolerance} ${verbose} 
+    echo ${mgf_files.join('\n')} > files_list.txt
+    maracluster batch -b files_list.txt -t ${params.maracluster_pvalue_threshold} -p '${params.maracluster_precursor_tolerance}' ${verbose}
+    """
+}
+
+process get_msp_format{
+    label 'process_low'
+    
+    input:
+    path file_input
+    tuple val(meta), path(tsv_path)
+
+    script:
+    verbose = params.mgf_verbose ? "-v" : ""
+
+    """
+    pyspectrafuse_cli msp\\
+        --parquet_dir "${file_input}" \\
+        --method_type "${params.strategytype}" \\
+        --cluster_tsv_file "${tsv_path}"\\
+        --species "${meta.species}"\\
+        --instrument "${meta.instrument}"\\
+        --charge "${meta.charge}"\\
+        --sim "${params.sim}"\\
+        --fragment_mz_tolerance "${params.fragment_mz_tolerance}"\\
+        --min_mz "${params.min_mz}"\\
+        --max_mz "${params.max_mz}"\\
+        --bin_size "${params.bin_size}"\\
+        --peak_quorum "${params.peak_quorum}"\\
+        --edge_case_threshold "${params.edge_case_threshold}"\\
+        --diff_thresh "${params.diff_thresh}" \\
+        --dyn_range "${params.dyn_range}" \\
+        --min_fraction "${params.min_fraction}" \\
+        --pepmass "${params.pepmass}" \\
+        --msms_avg "${params.msms_avg}"  
     """
 }
 
 //validate the input parameters
 if (!params.parquet_dir) {
     error "Please provide a folder containing the files that will be clustered"
+}
+
+
+workflow {
+    // cluster_projects_channel = createSubDirsChannel(params.parquet_dir)
+    // cluster_projects_channel.view()
+    generate_mgf_files(params.parquet_dir)
+
+    // 创建一个空的字典来存储分割的文件
+    //Create an empty hash map to store the split file
+    // generate_mgf_files.out.mgf_files.view()
+    generate_mgf_files.out.mgf_files.flatten()
+        .map { file ->                                                            
+            getkv(file)
+        }.set{t}
+
+    t.groupTuple()  //  按物种/仪器/带电荷分组文件
+        .set { splitFiles }
+    splitFiles.view()
+
+    run_maracluster(splitFiles)
+    run_maracluster.out.meta_tsv
+        .map {meta, file ->
+            [getMetaMap(meta), file]
+        }.set{k}
+    
+    k.view()
+    get_msp_format(params.parquet_dir, k)
+
+    //TODO: Filtering is performed in the maracluster channel
+}
+
+
+
+def getkv(file) {
+    pathParts = file.toString().split('/')
+    mgfOutputIndex = pathParts.findIndexOf { it == 'mgf_output' }
+
+    species = pathParts[mgfOutputIndex + 1]
+    instrument = pathParts[mgfOutputIndex + 2]
+    charge = pathParts[mgfOutputIndex + 3]
+    key = "${species}/${instrument}/${charge}"
+
+    return [key, file]
+
+}
+
+def getMetaMap(meta) {
+    res = [:]
+    parts = meta.split('/')
+    species = parts[0]
+    instrument = parts[1]
+    charge = parts[2]
+
+    res.species = species
+    res.instrument = instrument
+    res.charge = charge
+    return res
+}
+
+def getChargeKv(file) {
+    //把同个电荷的聚类文件放在放在一起
+    pathParts = file.toString().split('-') // maracluster_output/Homo_sapiens-Q_Exactive-charge2.clusters_p30.tsv
+
 }
 
 //Create channels for all items to be clustered
@@ -72,41 +162,3 @@ def createSubDirsChannel(String folderPath) {
         }
         .flatten()
 }
-
-workflow {
-    cluster_projects_channel = createSubDirsChannel(params.parquet_dir)
-    generate_mgf_files(cluster_projects_channel)
-
-    //Create an empty hash map to store the split file
-    def fileMap = [:]
-    generate_mgf_files.out.mgf_files.flatten()
-        .map { file ->
-            def pathParts = file.toString().split('/')
-            def mgfOutputIndex = pathParts.findIndexOf { it == 'mgf_output' }
-
-            //Create keys based on species, instrument, and charge
-            def species = pathParts[mgfOutputIndex + 1]
-            def instrument = pathParts[mgfOutputIndex + 2]
-            def charge = pathParts[mgfOutputIndex + 3]
-
-            def key = "mgf_output/${species}/${instrument}/${charge}"
-
-            // If the key is not in the map, a new list is created
-            if (!fileMap[key]) {
-                fileMap[key] = []
-            }
-            // Add the file to the corresponding list
-            fileMap[key].add(file)
-
-            return fileMap[key]
-        }
-        .set { splitFiles }
-
-    
-    splitFiles.view()
-
-    run_maracluster(splitFiles)
-
-    //TODO: Filtering is performed in the maracluster channel
-    }
-
