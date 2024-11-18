@@ -1,4 +1,6 @@
-#!/usr/bin/env nextflow.enable.dsl=2
+#!/usr/bin/env
+
+nextflow.enable.dsl=2
 
 // This process needs a lot of work, first we need to capture all the project folders that will contains a parquet
 // file and a sdrf file. Then independently we will run this process before the maracluster process for every project folder.
@@ -30,10 +32,10 @@ process run_maracluster{
     // publishDir "${params.parquet_dir}/mgf_output/", mode: 'copy', overwrite: false, emitDirs: true,  pattern: "*_p30.tsv"
 
     if (workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container) {
-        container 'https://containers.biocontainers.pro/s3/SingImgsRepo/maracluster/1.02.1_cv1/maracluster:1.02.1_cv1'
+        container 'https://containers.biocontainers.pro/s3/SingImgsRepo/maracluster/1.02.1_cv1/maracluster:1.04.1_cv1'
     }
     else {
-        container 'biocontainers/maracluster:1.02.1_cv1'
+        container 'biocontainers/maracluster:1.04.1_cv1'
     }
 
     input:
