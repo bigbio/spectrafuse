@@ -1,0 +1,31 @@
+name: generate_mgf_files
+description: Convert parquet files to MGF format for spectral clustering.
+keywords:
+  - quantms
+  - parquet
+  - mgf
+  - conversion
+tools:
+  - quantmsio2mgf:
+      description: |
+        A tool for converting parquet files from quantms reanalysis to MGF format.
+      homepage: https://github.com/bigbio/spectrafuse
+input:
+  - file_input:
+      type: directory
+      description: |
+        Input directory containing parquet files and SDRF files.
+      pattern: "**"
+output:
+  - mgf_files:
+      type: file
+      description: |
+        MGF files generated from parquet files, organized by species, instrument, and charge.
+      pattern: "*.mgf"
+  - versions:
+      type: file
+      description: File containing software versions
+      pattern: "versions.yml"
+authors:
+  - "@bigbio"
+

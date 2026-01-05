@@ -170,3 +170,4 @@ cython_debug/
 #Ignore cursor AI rules
 .cursor/
 .DS_Store
+.codacy/
