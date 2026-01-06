@@ -57,7 +57,6 @@ workflow SPECTRAFUSE {
         }
         .groupTuple(by: 0)
         .map { _key, meta_list, files ->
-            // Discard the key (using _key to indicate intentionally unused) as we only need the metadata string
             // All items in meta_list should be identical for the same key
             def meta_string = meta_list[0]
             return [meta_string, files]
