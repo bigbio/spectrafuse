@@ -9,7 +9,9 @@ tools:
   - quantmsio2mgf:
       description: |
         A tool for converting parquet files from quantms reanalysis to MGF format.
-      homepage: https://github.com/bigbio/spectrafuse
+        Part of the pyspectrafuse package, available in the pyspectrafuse container.
+      homepage: https://github.com/bigbio/pyspectrafuse
+      container: ghcr.io/bigbio/pyspectrafuse:0.0.2
 input:
   - file_input:
       type: directory

@@ -2,8 +2,8 @@ process GENERATE_MGF_FILES {
     label 'process_low'
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'docker://python:3.11-slim' :
-        'python:3.11-slim' }"
+        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.2' :
+        'ghcr.io/bigbio/pyspectrafuse:0.0.2' }"
 
     input:
     path file_input
@@ -17,18 +17,18 @@ process GENERATE_MGF_FILES {
     def args = task.ext.args ?: ''
 
     """
-    # Install required Python packages
-    pip install --quiet pyarrow pandas numpy click
-
-    # Copy the quantmsio2mgf.py script to work directory
-    cp \${projectDir}/bin/quantmsio2mgf.py ./
-
-    # Run the conversion
+    # Run the conversion using quantmsio2mgf from the pyspectrafuse container
     # The script creates mgf_output directory inside the parquet_dir (file_input)
-    python quantmsio2mgf.py convert --parquet_dir "${file_input}" ${verbose} ${args}
+    # Try quantmsio2mgf command first, fallback to python -m quantmsio2mgf if needed
+    if command -v quantmsio2mgf &> /dev/null; then
+        quantmsio2mgf convert --parquet_dir "${file_input}" ${verbose} ${args}
+    else
+        python -m quantmsio2mgf convert --parquet_dir "${file_input}" ${verbose} ${args}
+    fi
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
+        pyspectrafuse: 0.0.2
         python: \$(python --version 2>&1 | sed 's/Python //g')
         pyarrow: \$(python -c "import pyarrow; print(pyarrow.__version__)" 2>&1)
         pandas: \$(python -c "import pandas; print(pandas.__version__)" 2>&1)
