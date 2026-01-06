@@ -30,7 +30,7 @@ workflow SPECTRAFUSE {
         .flatten()
         .map { file ->
             def pathParts = file.toString().split('/')
-            def mgfOutputIndex = pathParts.findIndexOf { part -> part == 'mgf_output' }
+            def mgfOutputIndex = pathParts.findIndexOf { pathPart -> pathPart == 'mgf_output' }
 
             if (mgfOutputIndex == -1) {
                 log.warn "Warning: Could not find 'mgf_output' in path: ${file}"
@@ -46,9 +46,11 @@ workflow SPECTRAFUSE {
 
             return [key, file]
         }
-        .filter { it != null }
+        .filter { item ->
+            item != null
+        }
         .groupTuple(by: 0)
-        .map { key, files -> files }
+        .map { _key, files -> files }
         .set { ch_grouped_mgf_files }
 
     //
