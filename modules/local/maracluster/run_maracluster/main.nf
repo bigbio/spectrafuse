@@ -6,20 +6,20 @@ process RUN_MARACLUSTER {
         'biocontainers/maracluster:1.04.1_cv1' }"
 
     input:
-    path mgf_files_path
+    tuple val(meta), path(mgf_files_path)
 
     output:
-    path "maracluster_output/*.tsv", emit: maracluster_results
+    tuple val(meta), path("maracluster_output/*${params.cluster_threshold}.tsv"), emit: maracluster_results
     path "versions.yml", emit: versions
 
     script:
-    def verbose = params.maracluster_verbose ? "-v" : ""
+    def verbose = params.maracluster_verbose ? "-v 3" : "-v 0"
     def args = task.ext.args ?: ''
 
     """
     echo "\${mgf_files_path.join('\n')}" > files_list.txt
     
-    maracluster batch -b files_list.txt ${verbose} ${args}
+    maracluster batch -b files_list.txt -t ${params.maracluster_pvalue_threshold} -p '${params.maracluster_precursor_tolerance}' ${verbose} ${args}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

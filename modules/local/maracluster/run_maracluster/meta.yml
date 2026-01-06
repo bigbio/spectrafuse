@@ -12,16 +12,24 @@ tools:
       homepage: https://github.com/statisticalbiotechnology/maracluster
       documentation: https://github.com/statisticalbiotechnology/maracluster
 input:
+  - meta:
+      type: string
+      description: |
+        Metadata string in format "species/instrument/charge" for the grouped MGF files.
   - mgf_files_path:
       type: file
       description: |
         List of MGF files to cluster, grouped by species, instrument, and charge.
       pattern: "*.mgf"
 output:
+  - meta:
+      type: string
+      description: |
+        Metadata string passed through from input (format: "species/instrument/charge").
   - maracluster_results:
       type: file
       description: |
-        TSV files containing clustering results from MaRaCluster.
+        TSV files containing clustering results from MaRaCluster. Files are named with cluster_threshold pattern (e.g., *_p30.tsv).
       pattern: "*.tsv"
   - versions:
       type: file

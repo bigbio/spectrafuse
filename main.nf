@@ -24,7 +24,7 @@ workflow BIGBIO_SPECTRAFUSE {
     main:
 
     // Create a channel with the parquet_dir for MSP generation
-    ch_parquet_dir = Channel.fromPath(params.parquet_dir)
+    ch_parquet_dir = channel.fromPath(params.parquet_dir)
 
     SPECTRAFUSE(ch_projects, ch_parquet_dir)
 
