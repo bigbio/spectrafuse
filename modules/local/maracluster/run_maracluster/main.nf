@@ -9,7 +9,7 @@ process RUN_MARACLUSTER {
     tuple val(meta), path(mgf_files)  // Collection of MGF files grouped by species/instrument/charge
 
     output:
-    tuple val(meta), path("maracluster_output/*${params.cluster_threshold}.tsv"), emit: maracluster_results
+    tuple val(meta), path("maracluster_output/*_p${params.cluster_threshold}.tsv"), emit: maracluster_results
     path "versions.yml", emit: versions
 
     script:
