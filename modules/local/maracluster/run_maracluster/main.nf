@@ -21,6 +21,21 @@ process RUN_MARACLUSTER {
     
     maracluster batch -b files_list.txt -t ${params.maracluster_pvalue_threshold} -p '${params.maracluster_precursor_tolerance}' ${verbose} ${args}
 
+    # Verify that MaRaCluster produced output files matching the expected pattern
+    # Expected pattern: maracluster_output/*_p${params.cluster_threshold}.tsv
+    if [ ! -d maracluster_output ]; then
+        echo "ERROR: MaRaCluster did not create maracluster_output directory"
+        exit 1
+    fi
+    
+    output_count=\$(find maracluster_output -name "*_p${params.cluster_threshold}.tsv" -type f | wc -l)
+    if [ "\$output_count" -eq 0 ]; then
+        echo "ERROR: MaRaCluster did not produce any output files matching pattern *_p${params.cluster_threshold}.tsv"
+        echo "Found files in maracluster_output:"
+        ls -la maracluster_output/ || echo "Directory is empty or does not exist"
+        exit 1
+    fi
+
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         maracluster: \$(maracluster --version 2>&1 | head -n 1 | sed 's/.*version //g' || echo "1.04.1")

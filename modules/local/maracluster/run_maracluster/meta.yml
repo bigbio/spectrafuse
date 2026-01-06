@@ -29,7 +29,8 @@ output:
   - maracluster_results:
       type: file
       description: |
-        TSV files containing clustering results from MaRaCluster. Files are named with cluster_threshold pattern (e.g., *_p30.tsv).
+        TSV files containing clustering results from MaRaCluster. Files are named with cluster_threshold pattern (e.g., *_p30.tsv when cluster_threshold=30).
+        The process will fail if no files matching the pattern are found, indicating that MaRaCluster did not produce the expected output.
       pattern: "*.tsv"
   - versions:
       type: file

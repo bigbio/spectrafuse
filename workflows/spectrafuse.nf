@@ -91,12 +91,10 @@ workflow SPECTRAFUSE {
     //
     // MODULE: Generate MSP format files from clustering results
     //
-    ch_parquet_dir
-        .first()
-        .set { ch_single_parquet_dir }
-    
+    // Pass parquet_dir directly - Nextflow automatically broadcasts single-value channels
+    // to each item in ch_maracluster_with_meta, ensuring parquet_dir is available for all MSP tasks
     GENERATE_MSP_FORMAT(
-        ch_single_parquet_dir,
+        ch_parquet_dir,
         ch_maracluster_with_meta
     )
     ch_versions = ch_versions.mix(GENERATE_MSP_FORMAT.out.versions)
