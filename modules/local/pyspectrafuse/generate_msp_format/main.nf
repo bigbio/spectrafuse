@@ -21,48 +21,31 @@ process GENERATE_MSP_FORMAT {
     # Run MSP format generation using pyspectrafuse_cli from the pyspectrafuse container
     # Try pyspectrafuse_cli command first, fallback to python -m pyspectrafuse if needed
     # Use !{} syntax for safe shell escaping to prevent command injection
+    common_args="msp \
+        --parquet_dir !{parquet_dir} \
+        --method_type \"${params.strategytype}\" \
+        --cluster_tsv_file !{cluster_tsv_file} \
+        --species \"${meta.species}\" \
+        --instrument \"${meta.instrument}\" \
+        --charge \"${meta.charge}\" \
+        --sim \"${params.sim}\" \
+        --fragment_mz_tolerance \"${params.fragment_mz_tolerance}\" \
+        --min_mz \"${params.min_mz}\" \
+        --max_mz \"${params.max_mz}\" \
+        --bin_size \"${params.bin_size}\" \
+        --peak_quorum \"${params.peak_quorum}\" \
+        --edge_case_threshold \"${params.edge_case_threshold}\" \
+        --diff_thresh \"${params.diff_thresh}\" \
+        --dyn_range \"${params.dyn_range}\" \
+        --min_fraction \"${params.min_fraction}\" \
+        --pepmass \"${params.pepmass}\" \
+        --msms_avg \"${params.msms_avg}\" \
+        ${verbose} ${args}"
+
     if command -v pyspectrafuse_cli &> /dev/null; then
-        pyspectrafuse_cli msp \\
-            --parquet_dir !{parquet_dir} \\
-            --method_type "${params.strategytype}" \\
-            --cluster_tsv_file !{cluster_tsv_file} \\
-            --species "${meta.species}" \\
-            --instrument "${meta.instrument}" \\
-            --charge "${meta.charge}" \\
-            --sim "${params.sim}" \\
-            --fragment_mz_tolerance "${params.fragment_mz_tolerance}" \\
-            --min_mz "${params.min_mz}" \\
-            --max_mz "${params.max_mz}" \\
-            --bin_size "${params.bin_size}" \\
-            --peak_quorum "${params.peak_quorum}" \\
-            --edge_case_threshold "${params.edge_case_threshold}" \\
-            --diff_thresh "${params.diff_thresh}" \\
-            --dyn_range "${params.dyn_range}" \\
-            --min_fraction "${params.min_fraction}" \\
-            --pepmass "${params.pepmass}" \\
-            --msms_avg "${params.msms_avg}" \\
-            ${verbose} ${args}
+        pyspectrafuse_cli $common_args
     else
-        python -m pyspectrafuse msp \\
-            --parquet_dir !{parquet_dir} \\
-            --method_type "${params.strategytype}" \\
-            --cluster_tsv_file !{cluster_tsv_file} \\
-            --species "${meta.species}" \\
-            --instrument "${meta.instrument}" \\
-            --charge "${meta.charge}" \\
-            --sim "${params.sim}" \\
-            --fragment_mz_tolerance "${params.fragment_mz_tolerance}" \\
-            --min_mz "${params.min_mz}" \\
-            --max_mz "${params.max_mz}" \\
-            --bin_size "${params.bin_size}" \\
-            --peak_quorum "${params.peak_quorum}" \\
-            --edge_case_threshold "${params.edge_case_threshold}" \\
-            --diff_thresh "${params.diff_thresh}" \\
-            --dyn_range "${params.dyn_range}" \\
-            --min_fraction "${params.min_fraction}" \\
-            --pepmass "${params.pepmass}" \\
-            --msms_avg "${params.msms_avg}" \\
-            ${verbose} ${args}
+        python -m pyspectrafuse $common_args
     fi
 
     cat <<-END_VERSIONS > versions.yml
