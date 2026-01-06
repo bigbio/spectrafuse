@@ -20,11 +20,11 @@ process GENERATE_MGF_FILES {
     # Run the conversion using quantmsio2mgf from the pyspectrafuse container
     # The script creates mgf_output directory inside the parquet_dir (file_input)
     # Try quantmsio2mgf command first, fallback to python -m quantmsio2mgf if needed
-    # Use !{file_input} syntax for safe shell escaping to prevent command injection
+    # Use standard Nextflow interpolation (${file_input}) so the value is safely escaped in the shell command
     if command -v quantmsio2mgf &> /dev/null; then
-        quantmsio2mgf convert --parquet_dir !{file_input} ${verbose} ${args}
+        quantmsio2mgf convert --parquet_dir ${file_input} ${verbose} ${args}
     else
-        python -m quantmsio2mgf convert --parquet_dir !{file_input} ${verbose} ${args}
+        python -m quantmsio2mgf convert --parquet_dir ${file_input} ${verbose} ${args}
     fi
 
     cat <<-END_VERSIONS > versions.yml
