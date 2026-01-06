@@ -120,7 +120,7 @@ def checkCondaChannels() {
                 ${channels}
                 but the following channel order is required:
                 ${required_channels_in_order}
-            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
             """.stripIndent(true)
     }
 }
