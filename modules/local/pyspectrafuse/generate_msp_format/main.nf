@@ -20,11 +20,12 @@ process GENERATE_MSP_FORMAT {
     """
     # Run MSP format generation using pyspectrafuse_cli from the pyspectrafuse container
     # Try pyspectrafuse_cli command first, fallback to python -m pyspectrafuse if needed
+    # Use !{} syntax for safe shell escaping to prevent command injection
     if command -v pyspectrafuse_cli &> /dev/null; then
         pyspectrafuse_cli msp \\
-            --parquet_dir "${parquet_dir}" \\
+            --parquet_dir !{parquet_dir} \\
             --method_type "${params.strategytype}" \\
-            --cluster_tsv_file "${cluster_tsv_file}" \\
+            --cluster_tsv_file !{cluster_tsv_file} \\
             --species "${meta.species}" \\
             --instrument "${meta.instrument}" \\
             --charge "${meta.charge}" \\
@@ -43,9 +44,9 @@ process GENERATE_MSP_FORMAT {
             ${verbose} ${args}
     else
         python -m pyspectrafuse msp \\
-            --parquet_dir "${parquet_dir}" \\
+            --parquet_dir !{parquet_dir} \\
             --method_type "${params.strategytype}" \\
-            --cluster_tsv_file "${cluster_tsv_file}" \\
+            --cluster_tsv_file !{cluster_tsv_file} \\
             --species "${meta.species}" \\
             --instrument "${meta.instrument}" \\
             --charge "${meta.charge}" \\

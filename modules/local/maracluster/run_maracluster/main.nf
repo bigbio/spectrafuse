@@ -6,7 +6,7 @@ process RUN_MARACLUSTER {
         'biocontainers/maracluster:1.04.1_cv1' }"
 
     input:
-    tuple val(meta), path(mgf_files_path)
+    tuple val(meta), path(mgf_files)  // Collection of MGF files grouped by species/instrument/charge
 
     output:
     tuple val(meta), path("maracluster_output/*${params.cluster_threshold}.tsv"), emit: maracluster_results
@@ -17,7 +17,7 @@ process RUN_MARACLUSTER {
     def args = task.ext.args ?: ''
 
     """
-    echo "\${mgf_files_path.join('\n')}" > files_list.txt
+    echo "\${mgf_files.join('\n')}" > files_list.txt
     
     maracluster batch -b files_list.txt -t ${params.maracluster_pvalue_threshold} -p '${params.maracluster_precursor_tolerance}' ${verbose} ${args}
 

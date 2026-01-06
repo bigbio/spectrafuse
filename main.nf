@@ -20,6 +20,8 @@ include { UTILS_NEXTFLOW_PIPELINE } from './subworkflows/nf-core/utils_nextflow_
 // WORKFLOW: Run main bigbio/spectrafuse analysis pipeline
 //
 workflow BIGBIO_SPECTRAFUSE {
+    take:
+    ch_projects  // channel: [ path(project_dir) ]
 
     main:
 
@@ -53,11 +55,8 @@ workflow {
     }
 
     // Create channels for all items to be clustered
-    ch_projects = channel.fromPath(params.parquet_dir)
-        .map { path -> 
-            new File(path.toString()).listFiles()?.findAll { file -> file.isDirectory() }?.collect { file -> file.path } ?: []
-        }
-        .flatten()
+    // Use glob pattern to find directories - more idiomatic Nextflow than file system operations
+    ch_projects = channel.fromPath("${params.parquet_dir}/*", type: 'dir')
 
     // Dump parameters to JSON file for documenting the pipeline settings
     UTILS_NEXTFLOW_PIPELINE (

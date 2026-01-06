@@ -112,16 +112,16 @@ def checkCondaChannels() {
 
     if (channels_missing | channel_priority_violation) {
         log.warn """\
-        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-            There is a problem with your Conda configuration!
-            You will need to set-up the conda-forge and bioconda channels correctly.
-            Please refer to https://bioconda.github.io/
-            The observed channel order is
-            ${channels}
-            but the following channel order is required:
-            ${required_channels_in_order}
-        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-        """.stripIndent(true)
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                There is a problem with your Conda configuration!
+                You will need to set-up the conda-forge and bioconda channels correctly.
+                Please refer to https://bioconda.github.io/
+                The observed channel order is
+                ${channels}
+                but the following channel order is required:
+                ${required_channels_in_order}
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+            """.stripIndent(true)
     }
 }
 

@@ -9,7 +9,7 @@ process GENERATE_MGF_FILES {
     path file_input
 
     output:
-    path "${file_input}/mgf_output/**/*.mgf", emit: mgf_files
+    path "${file_input}/mgf_output/**/*.mgf", emit: mgf_files  // Recursive pattern to match all MGF files in subdirectories
     path "versions.yml", emit: versions
 
     script:
@@ -20,10 +20,11 @@ process GENERATE_MGF_FILES {
     # Run the conversion using quantmsio2mgf from the pyspectrafuse container
     # The script creates mgf_output directory inside the parquet_dir (file_input)
     # Try quantmsio2mgf command first, fallback to python -m quantmsio2mgf if needed
+    # Use !{file_input} syntax for safe shell escaping to prevent command injection
     if command -v quantmsio2mgf &> /dev/null; then
-        quantmsio2mgf convert --parquet_dir "${file_input}" ${verbose} ${args}
+        quantmsio2mgf convert --parquet_dir !{file_input} ${verbose} ${args}
     else
-        python -m quantmsio2mgf convert --parquet_dir "${file_input}" ${verbose} ${args}
+        python -m quantmsio2mgf convert --parquet_dir !{file_input} ${verbose} ${args}
     fi
 
     cat <<-END_VERSIONS > versions.yml
