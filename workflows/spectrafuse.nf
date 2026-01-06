@@ -32,18 +32,18 @@ workflow SPECTRAFUSE {
         .flatten()
         .map { file ->
             def pathParts = file.toString().split('/')
-            def mgfOutputIndex = pathParts.findIndexOf { pathPart -> pathPart == 'mgf_output' }
+            def mgf_output_index = pathParts.findIndexOf { pathPart -> pathPart == 'mgf_output' }
 
-            if (mgfOutputIndex == -1) {
+            if (mgf_output_index == -1) {
                 log.warn "Warning: Could not find 'mgf_output' in path: ${file}"
                 return null
             }
 
             // Create keys based on species, instrument, and charge
             // Use slash format to match main branch behavior
-            def species = pathParts[mgfOutputIndex + 1]
-            def instrument = pathParts[mgfOutputIndex + 2]
-            def charge = pathParts[mgfOutputIndex + 3]
+            def species = pathParts[mgf_output_index + 1]
+            def instrument = pathParts[mgf_output_index + 2]
+            def charge = pathParts[mgf_output_index + 3]
 
             def key = "${species}/${instrument}/${charge}"
             
