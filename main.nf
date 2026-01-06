@@ -23,11 +23,15 @@ workflow BIGBIO_SPECTRAFUSE {
 
     main:
 
-    SPECTRAFUSE(ch_projects)
+    // Create a channel with the parquet_dir for MSP generation
+    ch_parquet_dir = Channel.fromPath(params.parquet_dir)
+
+    SPECTRAFUSE(ch_projects, ch_parquet_dir)
 
     emit:
     maracluster_results = SPECTRAFUSE.out.maracluster_results
-    versions            = SPECTRAFUSE.out.versions
+    msp_files          = SPECTRAFUSE.out.msp_files
+    versions           = SPECTRAFUSE.out.versions
 }
 
 /*
