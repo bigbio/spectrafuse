@@ -171,3 +171,7 @@ cython_debug/
 .cursor/
 .DS_Store
 .codacy/
+
+# Data files - should not be in repository
+data/
+*.parquet
