@@ -4,6 +4,12 @@ process GENERATE_MGF_FILES {
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'docker://ghcr.io/bigbio/pyspectrafuse:0.0.2' :
         'ghcr.io/bigbio/pyspectrafuse:0.0.2' }"
+    
+    // Additional environment variables for Numba in containers
+    // Disable JIT and caching to prevent issues when running as non-root user
+    containerOptions = workflow.containerEngine == 'singularity' ? 
+        '--env NUMBA_DISABLE_JIT=1 --env NUMBA_DISABLE_CACHING=1 --env NUMBA_CACHE_DIR=/tmp' : 
+        '-e NUMBA_DISABLE_JIT=1 -e NUMBA_DISABLE_CACHING=1 -e NUMBA_CACHE_DIR=/tmp'
 
     input:
     path file_input
@@ -17,12 +23,17 @@ process GENERATE_MGF_FILES {
     def args = task.ext.args ?: ''
 
     """
-    # Run the conversion using quantmsio2mgf from the pyspectrafuse container
+    # Disable Numba JIT and caching to prevent container issues when running as non-root user
+    export NUMBA_DISABLE_JIT=1
+    export NUMBA_DISABLE_CACHING=1
+    export NUMBA_CACHE_DIR=/tmp
+    
+    # Run the conversion using pyspectrafuse convert-mgf from the pyspectrafuse container
     # The script creates mgf_output directory inside the parquet_dir (file_input)
-    quantmsio2mgf convert --parquet_dir ${file_input} ${verbose} ${args}
+    pyspectrafuse convert-mgf --parquet_dir ${file_input} ${verbose} ${args}
 
     # Get pyspectrafuse version dynamically
-    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //' | sed 's/[^0-9.].*//' || pyspectrafuse_cli --version 2>&1 | sed 's/.*version //' | sed 's/[^0-9.].*//' || echo "unknown")
+    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.2")
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

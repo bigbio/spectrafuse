@@ -4,6 +4,12 @@ process GENERATE_MSP_FORMAT {
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'docker://ghcr.io/bigbio/pyspectrafuse:0.0.2' :
         'ghcr.io/bigbio/pyspectrafuse:0.0.2' }"
+    
+    // Additional environment variables for Numba in containers
+    // Disable JIT and caching to prevent issues when running as non-root user
+    containerOptions = workflow.containerEngine == 'singularity' ? 
+        '--env NUMBA_DISABLE_JIT=1 --env NUMBA_DISABLE_CACHING=1 --env NUMBA_CACHE_DIR=/tmp' : 
+        '-e NUMBA_DISABLE_JIT=1 -e NUMBA_DISABLE_CACHING=1 -e NUMBA_CACHE_DIR=/tmp'
 
     input:
     path parquet_dir
@@ -18,9 +24,14 @@ process GENERATE_MSP_FORMAT {
     def args = task.ext.args ?: ''
 
     """
-    # Run MSP format generation using pyspectrafuse_cli from the pyspectrafuse container
+    # Disable Numba JIT and caching to prevent container issues when running as non-root user
+    export NUMBA_DISABLE_JIT=1
+    export NUMBA_DISABLE_CACHING=1
+    export NUMBA_CACHE_DIR=/tmp
+    
+    # Run MSP format generation using pyspectrafuse msp from the pyspectrafuse container
     # Use !{} syntax for safe shell escaping to prevent command injection
-    pyspectrafuse_cli msp \
+    pyspectrafuse msp \
         --parquet_dir !{parquet_dir} \
         --method_type "${params.strategytype}" \
         --cluster_tsv_file !{cluster_tsv_file} \
@@ -42,7 +53,7 @@ process GENERATE_MSP_FORMAT {
         ${verbose} ${args}
 
     # Get pyspectrafuse version dynamically
-    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //' | sed 's/[^0-9.].*//' || pyspectrafuse_cli --version 2>&1 | sed 's/.*version //' | sed 's/[^0-9.].*//' || echo "unknown")
+    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.2")
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

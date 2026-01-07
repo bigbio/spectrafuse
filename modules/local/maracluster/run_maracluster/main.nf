@@ -3,7 +3,7 @@ process RUN_MARACLUSTER {
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'https://containers.biocontainers.pro/s3/SingImgsRepo/maracluster/1.04.1_cv1/maracluster_1.04.1_cv1.sif' :
-        'biocontainers/maracluster:1.04.1_cv1' }"
+        'docker.io/biocontainers/maracluster:1.04.1_cv1' }"
 
     input:
     tuple val(meta), path(mgf_files)  // Collection of MGF files grouped by species/instrument/charge
@@ -15,9 +15,12 @@ process RUN_MARACLUSTER {
     script:
     def verbose = params.maracluster_verbose ? "-v 3" : "-v 0"
     def args = task.ext.args ?: ''
+    def files_list = mgf_files.join('\n')
 
     """
-    echo "\${mgf_files.join('\n')}" > files_list.txt
+    cat <<EOF > files_list.txt
+${files_list}
+EOF
     
     maracluster batch -b files_list.txt -t ${params.maracluster_pvalue_threshold} -p '${params.maracluster_precursor_tolerance}' ${verbose} ${args}
 
