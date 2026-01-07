@@ -175,3 +175,8 @@ cython_debug/
 # Data files - should not be in repository
 data/
 *.parquet
+
+# CI/CD test data and reports
+test_data/
+reports/
+results/
