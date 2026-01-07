@@ -19,21 +19,14 @@ process GENERATE_MGF_FILES {
     """
     # Run the conversion using quantmsio2mgf from the pyspectrafuse container
     # The script creates mgf_output directory inside the parquet_dir (file_input)
-    # Try quantmsio2mgf command first, fallback to python -m quantmsio2mgf if needed
-    # Use standard Nextflow interpolation (${file_input}) in the commands below
-    if command -v quantmsio2mgf &> /dev/null; then
-        quantmsio2mgf convert --parquet_dir ${file_input} ${verbose} ${args}
-    else
-        python -m quantmsio2mgf convert --parquet_dir ${file_input} ${verbose} ${args}
-    fi
+    quantmsio2mgf convert --parquet_dir ${file_input} ${verbose} ${args}
+
+    # Get pyspectrafuse version dynamically
+    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //' | sed 's/[^0-9.].*//' || pyspectrafuse_cli --version 2>&1 | sed 's/.*version //' | sed 's/[^0-9.].*//' || echo "unknown")
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        pyspectrafuse: 0.0.2
-        python: \$(python --version 2>&1 | sed 's/Python //g')
-        pyarrow: \$(python -c "import pyarrow; print(pyarrow.__version__)" 2>&1)
-        pandas: \$(python -c "import pandas; print(pandas.__version__)" 2>&1)
-        numpy: \$(python -c "import numpy; print(numpy.__version__)" 2>&1)
+        pyspectrafuse: \${PYSPECTRAFUSE_VERSION}
     END_VERSIONS
     """
 }
