@@ -1,5 +1,6 @@
 process GENERATE_MGF_FILES {
     label 'process_low'
+    tag { meta.id }
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'docker://ghcr.io/bigbio/pyspectrafuse:0.0.2' :
@@ -12,7 +13,7 @@ process GENERATE_MGF_FILES {
         '-e NUMBA_DISABLE_JIT=1 -e NUMBA_DISABLE_CACHING=1 -e NUMBA_CACHE_DIR=/tmp'
 
     input:
-    path file_input
+    tuple val(meta), path(file_input)
 
     output:
     path "${file_input}/mgf_output/**/*.mgf", emit: mgf_files  // Recursive pattern to match all MGF files in subdirectories

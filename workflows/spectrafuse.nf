@@ -22,7 +22,11 @@ workflow SPECTRAFUSE {
     //
     // MODULE: Generate MGF files from parquet files
     //
-    GENERATE_MGF_FILES(ch_projects)
+    ch_projects
+        .map { project_dir -> [ [ id: project_dir.baseName ], project_dir ] }
+        .set { ch_projects_with_meta }
+
+    GENERATE_MGF_FILES(ch_projects_with_meta)
     ch_versions = ch_versions.mix(GENERATE_MGF_FILES.out.versions)
 
     //
@@ -46,11 +50,21 @@ workflow SPECTRAFUSE {
             def charge = pathParts[mgf_output_index + 3]
 
             def key = "${species}/${instrument}/${charge}"
-            
-            // Create metadata string in the format used by main branch
-            def meta_string = key
 
-            return [key, meta_string, file]
+            // Create a meta map (nf-core style) including a stable id for tags/logs
+            // NOTE: Keep id filesystem-friendly (no slashes, minimal whitespace)
+            def id = "${species}__${instrument}__${charge}"
+                .replaceAll(/[\\/]/, '_')
+                .replaceAll(/\s+/, '_')
+
+            def meta = [
+                id: id,
+                species: species,
+                instrument: instrument,
+                charge: charge
+            ]
+
+            return [key, meta, file]
         }
         .filter { item ->
             item != null
@@ -58,8 +72,8 @@ workflow SPECTRAFUSE {
         .groupTuple(by: 0)
         .map { _key, meta_list, files ->
             // All items in meta_list should be identical for the same key
-            def meta_string = meta_list[0]
-            return [meta_string, files]
+            def meta = meta_list[0]
+            return [meta, files]
         }
         .set { ch_grouped_mgf_files_with_meta }
 
@@ -71,22 +85,9 @@ workflow SPECTRAFUSE {
     ch_versions = ch_versions.mix(RUN_MARACLUSTER.out.versions)
 
     //
-    // Process MaRaCluster results: Convert metadata string to map for MSP generation
-    // Uses getMetaMap function similar to main branch
+    // Process MaRaCluster results: pass meta map through for MSP generation
     //
-    RUN_MARACLUSTER.out.maracluster_results
-        .map { meta_string, tsv_file ->
-            // Convert metadata string (format: "species/instrument/charge") to map
-            def parts = meta_string.split('/')
-            def meta = [
-                species: parts.size() >= 1 ? parts[0] : 'unknown',
-                instrument: parts.size() >= 2 ? parts[1] : 'unknown',
-                charge: parts.size() >= 3 ? parts[2] : 'unknown'
-            ]
-            
-            return [meta, tsv_file]
-        }
-        .set { ch_maracluster_with_meta }
+    RUN_MARACLUSTER.out.maracluster_results.set { ch_maracluster_with_meta }
 
     //
     // MODULE: Generate MSP format files from clustering results

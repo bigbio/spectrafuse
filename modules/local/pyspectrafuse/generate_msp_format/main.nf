@@ -1,5 +1,6 @@
 process GENERATE_MSP_FORMAT {
     label 'process_low'
+    tag { meta.id }
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'docker://ghcr.io/bigbio/pyspectrafuse:0.0.2' :
@@ -19,7 +20,7 @@ process GENERATE_MSP_FORMAT {
     path "*.msp", emit: msp_files
     path "versions.yml", emit: versions
 
-    script:
+    shell:
     def verbose = params.mgf_verbose ? "-v" : ""
     def args = task.ext.args ?: ''
 
