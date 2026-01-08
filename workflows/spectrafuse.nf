@@ -102,7 +102,7 @@ workflow SPECTRAFUSE {
     ch_versions = ch_versions.mix(GENERATE_MSP_FORMAT_PROJECT.out.versions)
     
     // Group MSP files by project for combination
-    // Extract project_id from MSP file paths (they're in parquet_dir/msp/...)
+    // Join MSP files with original project directories to get correct project_dir
     GENERATE_MSP_FORMAT_PROJECT.out.msp_files
         .flatten()
         .filter { msp_file ->
@@ -111,96 +111,53 @@ workflow SPECTRAFUSE {
             fileStr.endsWith('.msp')
         }
         .map { msp_file ->
-            // Extract project info from path
+            // Extract project_id from MSP file path
             def pathParts = msp_file.toString().split('/')
-            // Find project directory (contains PXD or is a project name)
             def project_id = null
-            def project_dir = null
+            // Find project directory (contains PXD or is a project name)
             for (int i = 0; i < pathParts.length; i++) {
                 if (pathParts[i].contains('PXD') || pathParts[i].matches(/^PXD\\d+/)) {
                     project_id = pathParts[i]
-                    // project_dir is the parent directory of the parquet_dir
-                    def pathList = pathParts.toList()
-                    project_dir = pathList[0..<i].join('/')
                     break
                 }
             }
             // Fallback: extract from path structure if no PXD found
             if (!project_id) {
-                // Try to find parquet_dir and extract project from there
                 def parquet_dir_index = pathParts.findIndexOf { it == 'test_data' || it.contains('parquet') }
                 if (parquet_dir_index >= 0 && parquet_dir_index + 1 < pathParts.length) {
                     project_id = pathParts[parquet_dir_index + 1]
-                    def pathList = pathParts.toList()
-                    project_dir = pathList[0..<(parquet_dir_index + 2)].join('/')
                 }
             }
             if (!project_id) {
                 return null
             }
-            return [project_id, project_dir, msp_file]
+            return [project_id, msp_file]
         }
         .filter { item -> item != null }
         .groupTuple(by: 0)
-        .map { project_id, items ->
-            // items is list of [project_id, project_dir, msp_file] tuples
-            // Collect all msp_files and ensure they're individual files (not nested)
-            def all_msp_files = []
-            items.each { item ->
-                def msp_file = item[2]
-                if (msp_file instanceof List) {
-                    all_msp_files.addAll(msp_file)
-                } else {
-                    all_msp_files.add(msp_file)
-                }
+        .map { project_id, msp_files_list ->
+            // Flatten the list of msp files
+            def all_msp_files = msp_files_list.flatten().findAll { it.toString().endsWith('.msp') }
+            return [project_id, all_msp_files]
+        }
+        .join(ch_projects_with_meta.map { meta, project_dir -> [meta.id, project_dir] }, by: 0)  // Join on project_id to get original project_dir
+        .map { project_id, msp_files_list, project_dir ->
+            // Filter to ensure only .msp files (no directories)
+            def filtered_files = msp_files_list.flatten().findAll { file ->
+                file.toString().endsWith('.msp')
             }
-            def project_dir = items[0][1]
-            def project_meta = [
+            def project_meta_combined = [
                 id: project_id,
-                project_dir: project_dir
+                project_dir: project_dir.toString()
             ]
-            return [project_meta, project_dir, all_msp_files]
+            return [project_meta_combined, project_dir, filtered_files]
         }
         .set { ch_project_msp_files_for_combine }
-
-    //
-    // PROJECT-LEVEL: Combine all MSP files from each project into a single project-level MSP file
-    //
-    // Ensure msp_files is a flat list and filter out directories/nested structures
-    ch_project_msp_files_for_combine
-        .map { project_meta, project_dir, msp_files ->
-            // Ensure msp_files is a flat list of actual .msp files (no directories, no nested lists)
-            def flat_msp_files = []
-            if (msp_files instanceof List) {
-                msp_files.each { item ->
-                    if (item instanceof List) {
-                        // Nested list - flatten and filter
-                        item.each { file ->
-                            def fileStr = file.toString()
-                            if (fileStr.endsWith('.msp')) {
-                                flat_msp_files.add(file)
-                            }
-                        }
-                    } else {
-                        def fileStr = item.toString()
-                        if (fileStr.endsWith('.msp')) {
-                            flat_msp_files.add(item)
-                        }
-                    }
-                }
-            } else {
-                def fileStr = msp_files.toString()
-                if (fileStr.endsWith('.msp')) {
-                    flat_msp_files.add(msp_files)
-                }
-            }
-            return [project_meta, project_dir, flat_msp_files]
-        }
-        .set { ch_project_msp_files_cleaned }
     
     // Split into two channels - Nextflow will automatically synchronize them since they come from the same source
-    ch_project_info_for_combine = ch_project_msp_files_cleaned.map { project_meta, project_dir, msp_files -> [project_meta, project_dir] }
-    ch_project_msp_files_list = ch_project_msp_files_cleaned.map { project_meta, project_dir, msp_files -> msp_files }
+    // The msp_files list will be passed as a collection to the path() input
+    ch_project_info_for_combine = ch_project_msp_files_for_combine.map { project_meta, project_dir, msp_files -> [project_meta, project_dir] }
+    ch_project_msp_files_list = ch_project_msp_files_for_combine.map { project_meta, project_dir, msp_files -> msp_files }
     
     COMBINE_PROJECT_MSP(
         ch_project_info_for_combine,
