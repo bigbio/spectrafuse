@@ -17,7 +17,7 @@ process GENERATE_MSP_FORMAT {
     tuple val(meta), path(cluster_tsv_file)
 
     output:
-    path "**/*.msp*", emit: msp_files
+    path "**/*.msp", emit: msp_files
     path "versions.yml", emit: versions
 
     shell:
