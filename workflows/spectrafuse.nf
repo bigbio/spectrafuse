@@ -102,44 +102,61 @@ workflow SPECTRAFUSE {
     ch_versions = ch_versions.mix(GENERATE_MSP_FORMAT_PROJECT.out.versions)
     
     // Group MSP files by project for combination
-    // Combine MSP files with their corresponding metadata from maracluster_results
+    // Extract project info directly from MSP file paths and join with original project directories
     GENERATE_MSP_FORMAT_PROJECT.out.msp_files
-        .combine(ch_project_maracluster_results)
-        .map { msp_files_collection, meta, cluster_tsv_file ->
-            // Flatten msp_files_collection and filter for .msp files only
-            def msp_files_list = msp_files_collection.flatten().findAll { file ->
-                file.toString().endsWith('.msp')
+        .flatten()
+        .filter { msp_file ->
+            // Only keep actual .msp files, not directories
+            msp_file.toString().endsWith('.msp')
+        }
+        .map { msp_file ->
+            // Extract project_id from MSP file path
+            // Path structure: .../work/.../test_data/msp/species/instrument/charge/file.msp
+            // Or: .../work/.../PXD*/msp/species/instrument/charge/file.msp
+            def pathParts = msp_file.toString().split('/')
+            def project_id = null
+            
+            // Find project directory (contains PXD or is in test_data structure)
+            for (int i = 0; i < pathParts.length; i++) {
+                if (pathParts[i].contains('PXD') || pathParts[i].matches(/^PXD\\d+/)) {
+                    project_id = pathParts[i]
+                    break
+                }
             }
-            if (msp_files_list.isEmpty()) {
+            // Fallback: if in test_data structure, project might be in parquet_dir
+            if (!project_id) {
+                def test_data_index = pathParts.findIndexOf { it == 'test_data' }
+                if (test_data_index >= 0 && test_data_index + 1 < pathParts.length) {
+                    // Try to find project name after test_data
+                    project_id = pathParts[test_data_index + 1]
+                }
+            }
+            if (!project_id) {
                 return null
             }
-            // Extract project_id from meta (meta.id format: "project_id__species__instrument__charge")
-            def project_id = meta.project_id ?: (meta.id ? meta.id.split('__')[0] : null)
-            def project_dir = meta.project_dir
-            if (!project_id || !project_dir) {
-                return null
-            }
-            return [project_id, project_dir, msp_files_list]
+            return [project_id, msp_file]
         }
         .filter { it != null }
-        .groupTuple(by: 0)  // Group by project_id to combine all MSP files from the same project
-        .map { project_id, project_dir_list, msp_files_list_list ->
-            // All items should have the same project_dir
-            def project_dir_final = project_dir_list[0]
-            // Flatten all MSP files from all charge/instrument combinations
-            def all_msp_files = msp_files_list_list.flatten().findAll { file ->
+        .groupTuple(by: 0)  // Group by project_id
+        .map { project_id, msp_files_list ->
+            // Flatten and filter MSP files
+            def all_msp_files = msp_files_list.flatten().findAll { file ->
                 file.toString().endsWith('.msp')
             }
             if (all_msp_files.isEmpty()) {
                 return null
             }
-            def project_meta_combined = [
-                id: project_id,
-                project_dir: project_dir_final.toString()
-            ]
-            return [project_meta_combined, project_dir_final, all_msp_files]
+            return [project_id, all_msp_files]
         }
         .filter { it != null }
+        .join(ch_projects_with_meta.map { meta, project_dir -> [meta.id, project_dir] }, by: 0)  // Join to get original project_dir
+        .map { project_id, msp_files_list, project_dir ->
+            def project_meta_combined = [
+                id: project_id,
+                project_dir: project_dir.toString()
+            ]
+            return [project_meta_combined, project_dir, msp_files_list]
+        }
         .set { ch_project_msp_files_for_combine }
     
     // Split into two channels - Nextflow will automatically synchronize them since they come from the same source
