@@ -20,9 +20,11 @@ The start of the workflow is the SDRF of each reanalyzed project in quantms and 
 
 This workflow mainly consists of the following processes:
 
-1. **Tool mgf-converter**:A tool for converting each project file analyzed by QuantMS into an MGF file.
-2. **Incremental Maracluster Algorithm** : where we will utilize the incremental clustering method of Maracluster to cluster MGF files from the same species, instrument, and charge within each project.
-3. **Library converter**: - After all the clustering is done we should have a folder with the corresponding structure. 
+1. **MGF Converter** (`generate_mgf_files`): A tool for converting each project file analyzed by QuantMS into an MGF file. Uses the pyspectrafuse container to convert parquet files to MGF format, organized by species, instrument, and charge.
+
+2. **Incremental MaRaCluster Algorithm** (`run_maracluster`): Utilizes the incremental clustering method of MaRaCluster to cluster MGF files from the same species, instrument, and charge within each project. Produces TSV files containing clustering results.
+
+3. **MSP Format Generator** (`generate_msp_format`): Converts the MaRaCluster clustering results into MSP (Mass Spectrometry Project) format files, which are standard spectral library files. This process generates consensus spectra from the clustered data using configurable parameters for spectrum generation. 
 
 The pipeline is built using [Nextflow](https://www.nextflow.io/), a workflow tool to run tasks across multiple compute infrastructures in a very portable manner. It uses Docker/Singularity containers making installation trivial and results highly reproducible. The [Nextflow DSL2](https://www.nextflow.io/docs/latest/dsl2.html) implementation of this pipeline uses one container per process which makes it much easier to maintain and update software dependencies. 
 

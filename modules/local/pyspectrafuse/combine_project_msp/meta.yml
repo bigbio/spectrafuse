@@ -1,0 +1,40 @@
+name: combine_project_msp
+description: Combine all MSP files from a project (all species/instrument/charge combinations) into a single project-level MSP file.
+keywords:
+  - msp
+  - project
+  - combine
+  - merge
+tools:
+  - pyspectrafuse:
+      description: |
+        Python library for spectrafuse pipeline utilities.
+      homepage: https://github.com/bigbio/pyspectrafuse
+      documentation: https://github.com/bigbio/pyspectrafuse
+input:
+  - meta:
+      type: map
+      description: |
+        Metadata map containing project id.
+  - project_dir:
+      type: file
+      description: |
+        Project directory containing parquet and SDRF files.
+      pattern: "**/*"
+  - msp_files:
+      type: file
+      description: |
+        Collection of MSP files from all species/instrument/charge combinations within the project (only .msp files).
+      pattern: "**/*.msp"
+output:
+  - project_msp_file:
+      type: file
+      description: |
+        Single combined MSP file containing all clusters from the project (all charge/instrument combinations).
+      pattern: "*_project.msp"
+  - versions:
+      type: file
+      description: File containing software versions
+      pattern: "versions.yml"
+authors:
+  - "@bigbio"

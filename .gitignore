@@ -165,3 +165,20 @@ cython_debug/
 /.nextflow/
 /.nextflow.log
 .idea/
+
+
+#Ignore cursor AI rules
+.cursor/
+.DS_Store
+.codacy/
+
+# Data files - should not be in repository
+data/
+*.parquet
+
+# CI/CD test data and reports
+test_data/
+reports/
+results/
+results_test/
+

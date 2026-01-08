@@ -1,0 +1,43 @@
+name: generate_msp_format
+description: Generate MSP format files from MaRaCluster clustering results and parquet files.
+keywords:
+  - pyspectrafuse
+  - msp
+  - consensus
+  - spectral library
+tools:
+  - pyspectrafuse_cli:
+      description: |
+        A tool for generating MSP format spectral library files from clustering results.
+        Part of the pyspectrafuse package, available in the pyspectrafuse container.
+      homepage: https://github.com/bigbio/pyspectrafuse
+      container: ghcr.io/bigbio/pyspectrafuse:0.0.2
+input:
+  - parquet_dir:
+      type: directory
+      description: |
+        Input directory containing parquet files and SDRF files.
+      pattern: "**"
+  - cluster_tsv_file:
+      type: file
+      description: |
+        TSV file containing clustering results from MaRaCluster.
+      pattern: "*.tsv"
+  - meta:
+      type: map
+      description: |
+        Metadata map containing species, instrument, and charge information.
+output:
+  - msp_files:
+      type: file
+      description: |
+        MSP format files containing consensus spectra for the spectral library.
+      pattern: "*.msp"
+  - versions:
+      type: file
+      description: File containing software versions
+      pattern: "versions.yml"
+authors:
+  - "@bigbio"
+
+
