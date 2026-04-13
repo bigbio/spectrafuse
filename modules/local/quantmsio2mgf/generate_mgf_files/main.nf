@@ -31,7 +31,7 @@ process GENERATE_MGF_FILES {
     
     # Run the conversion using pyspectrafuse convert-mgf from the pyspectrafuse container
     # The script creates mgf_output directory inside the parquet_dir (file_input)
-    pyspectrafuse convert-mgf --parquet_dir ${file_input} ${verbose} ${args}
+    pyspectrafuse convert-mgf --parquet_dir ${file_input} ${verbose} ${args} ${params.skip_instrument ? '--skip_instrument' : ''}
 
     # Get pyspectrafuse version dynamically
     PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.2")

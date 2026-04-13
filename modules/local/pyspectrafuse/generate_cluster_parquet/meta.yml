@@ -1,0 +1,33 @@
+name: generate_cluster_parquet
+description: Generate Parquet database files (cluster_metadata + psm_cluster_membership) from MaRaCluster results
+keywords:
+  - clustering
+  - parquet
+  - spectral library
+  - proteomics
+tools:
+  - pyspectrafuse:
+      description: Python library for spectral clustering and consensus spectrum generation
+      homepage: https://github.com/bigbio/pyspectrafuse
+      documentation: https://github.com/bigbio/pyspectrafuse
+      licence: ["Apache-2.0"]
+input:
+  - parquet_dir:
+      type: directory
+      description: Base directory containing project parquet and SDRF files
+  - meta:
+      type: map
+      description: Groovy Map containing sample information (species, instrument, charge)
+  - cluster_tsv_file:
+      type: file
+      description: MaRaCluster output TSV file with cluster assignments
+      pattern: "*.tsv"
+output:
+  - cluster_parquet_files:
+      type: file
+      description: Parquet files with cluster metadata and PSM membership
+      pattern: "cluster_db/**/*.parquet"
+  - versions:
+      type: file
+      description: File containing software versions
+      pattern: "versions.yml"
