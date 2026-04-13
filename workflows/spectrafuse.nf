@@ -2,29 +2,153 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     SPECTRAFUSE WORKFLOW
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    Main workflow for incremental spectral clustering using MaRaCluster
+    Spectral clustering using MaRaCluster.
+
+    Two modes (params.mode):
+    - Full (default): Parquet → .dat → MaRaCluster → Cluster DB
+    - Incremental: Extract reps → cluster with new data → merge back
+
+    All modes partition by species/instrument/charge.
 ----------------------------------------------------------------------------------------
 */
 
-include { GENERATE_MGF_FILES } from '../modules/local/quantmsio2mgf/generate_mgf_files/main'
-include { RUN_MARACLUSTER as RUN_MARACLUSTER_PROJECT } from '../modules/local/maracluster/run_maracluster/main'
-include { RUN_MARACLUSTER as RUN_MARACLUSTER_GLOBAL } from '../modules/local/maracluster/run_maracluster/main'
-include { GENERATE_MSP_FORMAT as GENERATE_MSP_FORMAT_PROJECT } from '../modules/local/pyspectrafuse/generate_msp_format/main'
-include { GENERATE_MSP_FORMAT as GENERATE_MSP_FORMAT_GLOBAL } from '../modules/local/pyspectrafuse/generate_msp_format/main'
-include { COMBINE_PROJECT_MSP } from '../modules/local/pyspectrafuse/combine_project_msp/main'
+// ── Full mode: parquet-to-dat ──
+include { PARQUET_TO_DAT }       from '../modules/local/pyspectrafuse/parquet_to_dat/main'
+include { RUN_MARACLUSTER_DAT }  from '../modules/local/maracluster/run_maracluster_dat/main'
+include { BUILD_CLUSTER_DB }     from '../modules/local/pyspectrafuse/build_cluster_db/main'
 
-workflow SPECTRAFUSE {
+// ── Incremental mode ──
+include { GENERATE_MGF_FILES }       from '../modules/local/quantmsio2mgf/generate_mgf_files/main'
+include { RUN_MARACLUSTER }          from '../modules/local/maracluster/run_maracluster/main'
+include { EXTRACT_REPRESENTATIVES }  from '../modules/local/pyspectrafuse/extract_representatives/main'
+include { MERGE_INCREMENTAL }        from '../modules/local/pyspectrafuse/merge_incremental/main'
+
+
+workflow SPECTRAFUSE_FULL {
+    /*
+     * FULL MODE
+     * Parquet → .dat → MaRaCluster -D → Cluster DB
+     */
     take:
-    ch_projects  // channel: [ path(project_dir) ]
-    ch_parquet_dir  // channel: [ path(parquet_dir) ] - base directory for all projects
+    ch_projects
+    ch_parquet_dir
 
     main:
-
     ch_versions = channel.empty()
 
-    //
-    // MODULE: Generate MGF files from parquet files
-    //
+    // Step 1: Convert each project to .dat
+    ch_projects
+        .map { project_dir ->
+            [ [ id: project_dir.baseName, file_idx: 0 ], project_dir ]
+        }
+        .set { ch_projects_for_dat }
+
+    PARQUET_TO_DAT(ch_projects_for_dat)
+    ch_versions = ch_versions.mix(PARQUET_TO_DAT.out.versions)
+
+    // Step 2: Group .dat files by charge
+    PARQUET_TO_DAT.out.dat_files
+        .transpose()
+        .map { meta, dat_file ->
+            def charge_match = (dat_file.name =~ /_charge(\d+)\.dat$/)
+            if (!charge_match) return null
+            def charge = "charge${charge_match[0][1]}"
+            return [charge, meta.id, dat_file]
+        }
+        .filter { it != null }
+        .groupTuple(by: 0)
+        .map { charge, _ids, dat_files ->
+            def meta = [
+                id: "partition__${charge}",
+                species: params.default_species ?: 'Unknown',
+                instrument: params.default_instrument ?: 'Unknown',
+                charge: charge
+            ]
+            return [meta, dat_files]
+        }
+        .set { ch_grouped_dat }
+
+    PARQUET_TO_DAT.out.scan_titles
+        .transpose()
+        .map { meta, titles_file ->
+            def charge_match = (titles_file.name =~ /_charge(\d+)\.scan_titles\.txt$/)
+            if (!charge_match) return null
+            def charge = "charge${charge_match[0][1]}"
+            return [charge, titles_file]
+        }
+        .filter { it != null }
+        .groupTuple()
+        .set { ch_grouped_titles }
+
+    // Step 3: MaRaCluster with -D
+    ch_grouped_dat
+        .map { meta, dat_files -> [meta.charge, meta, dat_files] }
+        .join(ch_grouped_titles)
+        .map { _charge, meta, dat_files, titles -> [meta, dat_files, titles] }
+        .set { ch_mara_input }
+
+    RUN_MARACLUSTER_DAT(ch_mara_input)
+    ch_versions = ch_versions.mix(RUN_MARACLUSTER_DAT.out.versions)
+
+    // Step 4: Build cluster DB
+    RUN_MARACLUSTER_DAT.out.maracluster_results
+        .map { meta, tsv -> [meta.charge, meta, tsv] }
+        .join(
+            RUN_MARACLUSTER_DAT.out.scan_titles_out
+                .map { meta, titles -> [meta.charge, titles] }
+        )
+        .map { _charge, meta, tsv, titles ->
+            [meta, tsv, titles]
+        }
+        .set { ch_db_input }
+
+    // Collect all project dirs as a list for BUILD_CLUSTER_DB
+    ch_project_dirs = ch_projects.collect()
+
+    BUILD_CLUSTER_DB(
+        ch_db_input.combine(ch_project_dirs.map { dirs -> [dirs] })
+    )
+    ch_versions = ch_versions.mix(BUILD_CLUSTER_DB.out.versions)
+
+    emit:
+    maracluster_results = RUN_MARACLUSTER_DAT.out.maracluster_results
+    cluster_parquet     = BUILD_CLUSTER_DB.out.cluster_metadata
+    versions            = ch_versions
+}
+
+
+workflow SPECTRAFUSE_INCREMENTAL {
+    /*
+     * INCREMENTAL MODE
+     * Extract reps from existing DB → cluster with new data → merge
+     */
+    take:
+    ch_projects
+    ch_parquet_dir
+
+    main:
+    ch_versions = channel.empty()
+
+    // Load existing cluster DB
+    ch_existing_db = channel.fromPath("${params.existing_cluster_db}/**/cluster_metadata.parquet")
+        .map { meta_file ->
+            def membership = meta_file.parent.resolve('psm_cluster_membership.parquet')
+            def charge = meta_file.parent.parent.name
+            def instrument = meta_file.parent.parent.parent.name
+            def species = meta_file.parent.parent.parent.parent.name
+            def id = "${species}__${instrument}__${charge}"
+                .replaceAll(/[\\/]/, '_').replaceAll(/\s+/, '_')
+            def meta = [ id: id, species: species, instrument: instrument, charge: charge ]
+            return [meta, meta_file, membership]
+        }
+
+    // Step 1: Extract representatives
+    EXTRACT_REPRESENTATIVES(
+        ch_existing_db.map { meta, meta_file, _mem -> [meta, meta_file] }
+    )
+    ch_versions = ch_versions.mix(EXTRACT_REPRESENTATIVES.out.versions)
+
+    // Step 2: Convert new data to spectrum files
     ch_projects
         .map { project_dir -> [ [ id: project_dir.baseName ], project_dir ] }
         .set { ch_projects_with_meta }
@@ -32,217 +156,82 @@ workflow SPECTRAFUSE {
     GENERATE_MGF_FILES(ch_projects_with_meta)
     ch_versions = ch_versions.mix(GENERATE_MGF_FILES.out.versions)
 
-    //
-    // PROJECT-LEVEL CLUSTERING: Group MGF files within each project by species, instrument, and charge
-    //
-    // Extract project info from MGF file paths and group by project first
+    // Step 3: Group new spectra by partition key
     GENERATE_MGF_FILES.out.mgf_files
         .flatten()
         .map { file ->
             def pathParts = file.toString().split('/')
-            def mgf_output_index = pathParts.findIndexOf { pathPart -> pathPart == 'mgf_output' }
-            
-            if (mgf_output_index == -1) {
-                return null
-            }
-            
-            // Extract project info from path (project directory is before mgf_output)
-            def project_dir_index = mgf_output_index - 1
-            def project_dir = project_dir_index >= 0 ? pathParts[0..<mgf_output_index].join('/') : null
-            def project_id = project_dir ? new File(project_dir).getName() : null
-            
-            def species = pathParts[mgf_output_index + 1]
-            def instrument = pathParts[mgf_output_index + 2]
-            def charge = pathParts[mgf_output_index + 3]
-            def key = "${species}/${instrument}/${charge}"
-            
-            def id = "${project_id}__${species}__${instrument}__${charge}"
-                .replaceAll(/[\\/]/, '_')
-                .replaceAll(/\s+/, '_')
-            
-            def meta = [
-                id: id,
-                project_id: project_id,
-                species: species,
-                instrument: instrument,
-                charge: charge,
-                project_dir: project_dir
-            ]
-            
-            // Return [project_id, key, meta, file] for grouping
-            return [project_id, key, meta, file]
-        }
-        .filter { item -> item != null }
-        .groupTuple(by: [0, 1])  // Group by project_id and key
-        .map { project_id, key, meta_list, files_list ->
-            // All items in meta_list should have same species/instrument/charge
-            def meta = meta_list[0]
-            def files = files_list.flatten()
-            return [meta, files]
-        }
-        .set { ch_project_mgf_files_with_meta }
-
-    //
-    // PROJECT-LEVEL: Run MaRaCluster on grouped MGF files within each project
-    //
-    RUN_MARACLUSTER_PROJECT(ch_project_mgf_files_with_meta)
-    ch_versions = ch_versions.mix(RUN_MARACLUSTER_PROJECT.out.versions)
-    
-    // Pass through project metadata
-    RUN_MARACLUSTER_PROJECT.out.maracluster_results
-        .set { ch_project_maracluster_results }
-
-    //
-    // PROJECT-LEVEL: Generate MSP format files per project (per species/instrument/charge)
-    //
-    GENERATE_MSP_FORMAT_PROJECT(
-        ch_parquet_dir,
-        ch_project_maracluster_results
-    )
-    ch_versions = ch_versions.mix(GENERATE_MSP_FORMAT_PROJECT.out.versions)
-    
-    // Group MSP files by project for combination
-    // Extract project info directly from MSP file paths and join with original project directories
-    GENERATE_MSP_FORMAT_PROJECT.out.msp_files
-        .flatten()
-        .filter { msp_file ->
-            // Only keep actual .msp files, not directories
-            msp_file.toString().endsWith('.msp')
-        }
-        .map { msp_file ->
-            // Extract project_id from MSP file path
-            // Path structure: .../work/.../test_data/msp/species/instrument/charge/file.msp
-            // Or: .../work/.../PXD*/msp/species/instrument/charge/file.msp
-            def pathParts = msp_file.toString().split('/')
-            def project_id = null
-            
-            // Find project directory (contains PXD or is in test_data structure)
-            for (int i = 0; i < pathParts.length; i++) {
-                if (pathParts[i].contains('PXD') || pathParts[i].matches(/^PXD\\d+/)) {
-                    project_id = pathParts[i]
-                    break
-                }
-            }
-            // Fallback: if in test_data structure, project might be in parquet_dir
-            if (!project_id) {
-                def test_data_index = pathParts.findIndexOf { it == 'test_data' }
-                if (test_data_index >= 0 && test_data_index + 1 < pathParts.length) {
-                    // Try to find project name after test_data
-                    project_id = pathParts[test_data_index + 1]
-                }
-            }
-            if (!project_id) {
-                return null
-            }
-            return [project_id, msp_file]
+            def idx = pathParts.findIndexOf { it == 'mgf_output' }
+            if (idx == -1) return null
+            def species = pathParts[idx + 1]
+            def instrument = params.skip_instrument ? 'all_instruments' : pathParts[idx + 2]
+            def charge = pathParts[idx + 3]
+            def key = "${species}__${instrument}__${charge}"
+                .replaceAll(/[\\/]/, '_').replaceAll(/\s+/, '_')
+            return [key, file]
         }
         .filter { it != null }
-        .groupTuple(by: 0)  // Group by project_id
-        .map { project_id, msp_files_list ->
-            // Flatten and filter MSP files
-            def all_msp_files = msp_files_list.flatten().findAll { file ->
-                file.toString().endsWith('.msp')
-            }
-            if (all_msp_files.isEmpty()) {
-                return null
-            }
-            return [project_id, all_msp_files]
+        .groupTuple()
+        .set { ch_new_spectra }
+
+    // Combine reps + new spectra
+    EXTRACT_REPRESENTATIVES.out.representative_mgf
+        .map { meta, mgf -> [meta.id, meta, mgf] }
+        .join(ch_new_spectra)
+        .map { _id, meta, rep_mgf, new_files ->
+            [meta, [rep_mgf, new_files].flatten()]
         }
-        .filter { it != null }
-        .join(ch_projects_with_meta.map { meta, project_dir -> [meta.id, project_dir] }, by: 0)  // Join to get original project_dir
-        .map { project_id, msp_files_list, project_dir ->
-            def project_meta_combined = [
-                id: project_id,
-                project_dir: project_dir.toString()
-            ]
-            return [project_meta_combined, project_dir, msp_files_list]
-        }
-        .set { ch_project_msp_files_for_combine }
-    
-    // Split into two channels - Nextflow will automatically synchronize them since they come from the same source
-    // The msp_files list will be passed as a collection to the path() input
-    ch_project_info_for_combine = ch_project_msp_files_for_combine.map { project_meta, project_dir, msp_files -> [project_meta, project_dir] }
-    ch_project_msp_files_list = ch_project_msp_files_for_combine.map { project_meta, project_dir, msp_files -> msp_files }
-    
-    COMBINE_PROJECT_MSP(
-        ch_project_info_for_combine,
-        ch_project_msp_files_list
-    )
-    ch_versions = ch_versions.mix(COMBINE_PROJECT_MSP.out.versions)
+        .set { ch_combined_spectra }
 
-    //
-    // GLOBAL CLUSTERING: Process MGF files: Group by species, instrument, and charge ACROSS projects
-    //
-    GENERATE_MGF_FILES.out.mgf_files
-        .flatten()
-        .map { file ->
-            def pathParts = file.toString().split('/')
-            def mgf_output_index = pathParts.findIndexOf { pathPart -> pathPart == 'mgf_output' }
+    RUN_MARACLUSTER(ch_combined_spectra)
+    ch_versions = ch_versions.mix(RUN_MARACLUSTER.out.versions)
 
-            if (mgf_output_index == -1) {
-                log.warn "Warning: Could not find 'mgf_output' in path: ${file}"
-                return null
-            }
+    // Step 4: Merge
+    RUN_MARACLUSTER.out.maracluster_results
+        .map { meta, tsv -> [meta.id, meta, tsv] }
+        .join(
+            EXTRACT_REPRESENTATIVES.out.representative_mgf.map { meta, mgf -> [meta.id, mgf] }
+        )
+        .join(
+            ch_existing_db.map { meta, mf, mem -> [meta.id, mf, mem] }
+        )
+        .map { _id, meta, tsv, rep_mgf, mf, mem -> [meta, tsv, rep_mgf, mf, mem] }
+        .set { ch_merge_input }
 
-            // Create keys based on species, instrument, and charge
-            // Use slash format to match main branch behavior
-            def species = pathParts[mgf_output_index + 1]
-            def instrument = pathParts[mgf_output_index + 2]
-            def charge = pathParts[mgf_output_index + 3]
-
-            def key = "${species}/${instrument}/${charge}"
-
-            // Create a meta map (nf-core style) including a stable id for tags/logs
-            // NOTE: Keep id filesystem-friendly (no slashes, minimal whitespace)
-            def id = "${species}__${instrument}__${charge}"
-                .replaceAll(/[\\/]/, '_')
-                .replaceAll(/\s+/, '_')
-
-            def meta = [
-                id: id,
-                species: species,
-                instrument: instrument,
-                charge: charge
-            ]
-
-            return [key, meta, file]
-        }
-        .filter { item ->
-            item != null
-        }
-        .groupTuple(by: 0)
-        .map { _key, meta_list, files ->
-            // All items in meta_list should be identical for the same key
-            def meta = meta_list[0]
-            return [meta, files]
-        }
-        .set { ch_grouped_mgf_files_with_meta }
-
-    //
-    // GLOBAL: Run MaRaCluster on grouped MGF files across all projects
-    // Pass metadata through as tuple to match main branch behavior
-    //
-    RUN_MARACLUSTER_GLOBAL(ch_grouped_mgf_files_with_meta)
-    ch_versions = ch_versions.mix(RUN_MARACLUSTER_GLOBAL.out.versions)
-    
-    // Get global clustering results
-    RUN_MARACLUSTER_GLOBAL.out.maracluster_results
-        .set { ch_global_maracluster_results }
-
-    //
-    // GLOBAL: Generate MSP format files from global clustering results
-    //
-    // Pass parquet_dir directly - Nextflow automatically broadcasts single-value channels
-    // to each item in RUN_MARACLUSTER_GLOBAL.out.maracluster_results, ensuring parquet_dir is available for all MSP tasks
-    GENERATE_MSP_FORMAT_GLOBAL(
-        ch_parquet_dir,
-        ch_global_maracluster_results
-    )
-    ch_versions = ch_versions.mix(GENERATE_MSP_FORMAT_GLOBAL.out.versions)
+    MERGE_INCREMENTAL(ch_parquet_dir, ch_merge_input)
+    ch_versions = ch_versions.mix(MERGE_INCREMENTAL.out.versions)
 
     emit:
-    project_msp_files    = COMBINE_PROJECT_MSP.out.project_msp_file
-    maracluster_results  = ch_global_maracluster_results
-    msp_files            = GENERATE_MSP_FORMAT_GLOBAL.out.msp_files
-    versions             = ch_versions
+    maracluster_results = RUN_MARACLUSTER.out.maracluster_results
+    cluster_parquet     = MERGE_INCREMENTAL.out.cluster_parquet_files
+    versions            = ch_versions
+}
+
+
+workflow SPECTRAFUSE {
+    /*
+     * Router workflow — dispatches to the correct sub-workflow based on params.
+     */
+    take:
+    ch_projects
+    ch_parquet_dir
+
+    main:
+
+    if (params.mode == 'incremental') {
+        SPECTRAFUSE_INCREMENTAL(ch_projects, ch_parquet_dir)
+        ch_results = SPECTRAFUSE_INCREMENTAL.out.maracluster_results
+        ch_parquet = SPECTRAFUSE_INCREMENTAL.out.cluster_parquet
+        ch_versions = SPECTRAFUSE_INCREMENTAL.out.versions
+    } else {
+        SPECTRAFUSE_FULL(ch_projects, ch_parquet_dir)
+        ch_results = SPECTRAFUSE_FULL.out.maracluster_results
+        ch_parquet = SPECTRAFUSE_FULL.out.cluster_parquet
+        ch_versions = SPECTRAFUSE_FULL.out.versions
+    }
+
+    emit:
+    maracluster_results = ch_results
+    cluster_parquet     = ch_parquet
+    versions            = ch_versions
 }

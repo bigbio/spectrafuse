@@ -1,6 +1,7 @@
 process COMBINE_PROJECT_MSP {
     label 'process_low'
     tag { meta.id }
+    publishDir "${params.outdir}/project_msp_files", mode: params.publish_dir_mode, pattern: "*.msp"
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'docker://ghcr.io/bigbio/pyspectrafuse:0.0.2' :

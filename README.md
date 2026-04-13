@@ -6,69 +6,67 @@ quantms has reanalyzed an extensive number of datasets with almost 1 billion MS/
 
 [spectrafuse](https://github.com/bigbio/spectrafuse) is a Nextflow workflow that performs incremental clustering of quantms data and is based on the tool [MaRaCluster](https://github.com/statisticalbiotechnology/maracluster).
 
-The workflow in a nutshell:
-
-![image](https://github.com/bigbio/spectrafuse/assets/52113/24a7c9ac-7287-421c-b8f1-6319764ed29c)
-
-Reference: https://github.com/bigbio/spectrafuse/blob/main/docs/algorithm.png
-
-The workflow is designed to be run in a high-performance computing environment, and it is built using [Nextflow](https://www.nextflow.io/). It uses Docker/Singularity containers making installation trivial and results highly reproducible. The [Nextflow DSL2](https://www.nextflow.io/docs/latest/dsl2.html) implementation of this pipeline uses one container per process which makes it much easier to maintain and update software dependencies.
-
-## Table of Contents
-
-- [Workflow Overview](#workflow-overview)
-- [Input Requirements](#input-requirements)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Parameters](#parameters)
-- [Output Structure](#output-structure)
-- [Profiles](#profiles)
-- [Examples](#examples)
-
 ## Workflow Overview
 
-The spectrafuse workflow performs **two-phase clustering**:
+![SpectrafUSE Workflow](docs/images/spectrafuse_workflow.svg)
 
-### Phase 1: Project-Level Clustering
+The pipeline converts QPX parquet files directly into MaRaCluster's internal `.dat` binary format (~100 bytes/spectrum), making it feasible to cluster datasets with millions of PSMs on standard hardware.
 
-1. **MGF Converter** (`GENERATE_MGF_FILES`): Converts parquet files from each project into MGF format, organized by species, instrument, and charge state.
+The pipeline supports three modes:
 
-2. **Project-Level MaRaCluster** (`RUN_MARACLUSTER_PROJECT`): Clusters MGF files within each project, grouping by species, instrument, and charge. This produces project-specific clustering results.
+### Full Mode (default)
 
-3. **Project-Level MSP Generation** (`GENERATE_MSP_FORMAT_PROJECT`): Generates MSP format files for each project, creating consensus spectra from the project-level clusters.
+Parquet &rarr; `.dat` &rarr; MaRaCluster &rarr; Cluster DB
 
-4. **Project MSP Combination** (`COMBINE_PROJECT_MSP`): Combines all MSP files from a project (across all charge states and instruments) into a single project-level MSP file.
+1. **Parquet to Dat** (`PARQUET_TO_DAT`): Converts PSM parquet files directly to MaRaCluster's binary `.dat` format, optionally filtering by charge state. Replicates MaRaCluster's internal binning algorithm (`bin = floor(mz / 1.000508 + 0.32)`, top-40 peaks).
 
-### Phase 2: Global Clustering
+2. **MaRaCluster** (`RUN_MARACLUSTER_DAT`): Clusters spectra using the `-D` flag to read pre-existing `.dat` files, skipping MaRaCluster's own file conversion step.
 
-5. **Global MaRaCluster** (`RUN_MARACLUSTER_GLOBAL`): Clusters MGF files across **all projects**, grouping by species, instrument, and charge. This creates global clusters that span multiple projects.
+3. **Build Cluster DB** (`BUILD_CLUSTER_DB`): Generates `cluster_metadata.parquet` and `psm_cluster_membership.parquet` from MaRaCluster's clustering output and the scan-title mappings produced during dat conversion.
 
-6. **Global MSP Generation** (`GENERATE_MSP_FORMAT_GLOBAL`): Generates final MSP format files from the global clustering results, creating consensus spectra from clusters that include spectra from multiple projects.
+### Incremental Mode
+
+Adds new data to an existing cluster DB without re-clustering everything.
+
+1. **Extract Representatives** (`EXTRACT_REPRESENTATIVES`): Reads cluster metadata and writes one consensus spectrum per existing cluster.
+
+2. **Convert New Data**: Converts new project PSMs to charge-specific spectrum files.
+
+3. **MaRaCluster** (`RUN_MARACLUSTER`): Clusters representatives + new data together. Representatives that land in the same new cluster as new spectra link those spectra to the existing cluster.
+
+4. **Merge Clusters** (`MERGE_INCREMENTAL`): Resolves cluster IDs (representative &rarr; original cluster mapping, multi-representative merges, fresh UUIDs for new-only clusters) and updates the cluster DB.
 
 ### Key Features
 
-- **Incremental Clustering**: Two-phase approach allows for project-specific libraries and global libraries
-- **Parallel Processing**: Projects are processed in parallel for efficiency
-- **Organized by Metadata**: Clustering is performed separately for each combination of species, instrument, and charge state
-- **Consensus Spectra**: Multiple strategies available for generating consensus spectra from clusters
+- **Compact binary format**: Parquet-to-dat conversion produces ~1.3 GB for 12.8M PSMs
+- **Incremental clustering**: Add new datasets without re-clustering existing data
+- **Parallel processing**: Projects and charge partitions are processed in parallel
+- **Partitioned by metadata**: Clustering is performed separately for each species/instrument/charge combination
+- **Consensus spectra**: Multiple strategies (best, bin, most, average) for generating consensus spectra from clusters
 
 ## Input Requirements
 
 The workflow requires:
 
-1. **Project Directory Structure**: A directory containing one or more project subdirectories. Each project directory should contain:
-   - **Parquet files** (`.parquet`): PSM data files generated by quantms. **Note**: The parquet files MUST contain the corresponding spectra for each identified peptide (mz_array and intensity_array columns).
-   - **SDRF files** (`.sdrf.tsv`): Sample and Data Relationship Format files containing metadata about the samples.
+1. **QPX Parquet files**: A directory containing one or more project subdirectories. Each project directory should contain the QPX file set:
 
-2. **Directory Structure**:
+   | File | Purpose |
+   |------|---------|
+   | `{id}.psm.parquet` | PSM spectra (mz_array, intensity_array, charge, sequence, etc.) |
+   | `{id}.run.parquet` | Run metadata (run_file_name, instrument, samples, enzymes) |
+   | `{id}.sample.parquet` | Sample metadata (organism, organism_part) |
+
+2. **Directory structure**:
    ```
    parquet_dir/
    ├── PXD004732/
-   │   ├── *.parquet
-   │   └── *.sdrf.tsv
+   │   ├── PXD004732.psm.parquet
+   │   ├── PXD004732.run.parquet
+   │   └── PXD004732.sample.parquet
    ├── PXD004733/
-   │   ├── *.parquet
-   │   └── *.sdrf.tsv
+   │   ├── PXD004733.psm.parquet
+   │   ├── PXD004733.run.parquet
+   │   └── PXD004733.sample.parquet
    └── ...
    ```
 
@@ -95,20 +93,23 @@ cd spectrafuse
 
 ## Usage
 
-### Basic Usage
+### Full Mode (default)
 
 ```bash
 nextflow run main.nf \
     --parquet_dir /path/to/projects \
+    --default_species "Homo sapiens" \
+    --default_instrument "Q Exactive HF" \
     -profile docker
 ```
 
-### With Custom Output Directory
+### Incremental Mode
 
 ```bash
 nextflow run main.nf \
-    --parquet_dir /path/to/projects \
-    --outdir ./results \
+    --parquet_dir /path/to/new_projects \
+    --mode incremental \
+    --existing_cluster_db /path/to/cluster_db \
     -profile docker
 ```
 
@@ -124,8 +125,7 @@ nextflow run main.nf \
 ### Test Run
 
 ```bash
-nextflow run main.nf \
-    -profile test,docker
+nextflow run main.nf -profile test,docker
 ```
 
 ## Parameters
@@ -134,7 +134,17 @@ nextflow run main.nf \
 
 | Parameter | Description | Example |
 |-----------|-------------|---------|
-| `--parquet_dir` | Directory containing project subdirectories with parquet and SDRF files | `/data/projects` |
+| `--parquet_dir` | Directory containing project subdirectories with QPX parquet files | `/data/projects` |
+
+### Pipeline Mode Parameters
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `--mode` | Pipeline mode: `full` or `incremental` | `full` |
+| `--existing_cluster_db` | Path to existing cluster DB (required for incremental mode) | `null` |
+| `--default_species` | Species label for cluster DB metadata | `null` |
+| `--default_instrument` | Instrument label for cluster DB metadata | `null` |
+| `--skip_instrument` | Cluster all instruments together (no instrument partitioning) | `false` |
 
 ### MaRaCluster Parameters
 
@@ -145,23 +155,11 @@ nextflow run main.nf \
 | `--cluster_threshold` | P-value threshold for MaRaCluster output file naming (e.g., `*_p30.tsv`) | `30` |
 | `--maracluster_verbose` | Enable verbose output from MaRaCluster | `false` |
 
-### MGF Generation Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `--mgf_verbose` | Enable verbose output from MGF generation | `true` |
-
-### MSP Format Generation Parameters
-
-These parameters control how consensus spectra are generated from clusters.
-
-#### Consensus Strategy
+### Consensus Strategy Parameters
 
 | Parameter | Description | Default | Options |
 |-----------|-------------|---------|---------|
 | `--strategytype` | Consensus spectrum generation method | `best` | `best`, `most`, `bin`, `average` |
-
-#### Strategy-Specific Parameters
 
 **For `most` method (Most Similar Spectrum):**
 | Parameter | Description | Default |
@@ -184,8 +182,8 @@ These parameters control how consensus spectra are generated from clusters.
 | `--diff_thresh` | Minimum distance between MS/MS peak clusters | `0.01` |
 | `--dyn_range` | Dynamic range to apply to output spectra | `1000` |
 | `--min_fraction` | Minimum fraction of cluster spectra where MS/MS peak is present (0.0-1.0) | `0.5` |
-| `--pepmass` | Peptide mass calculation method | `lower_median` | `naive_average`, `neutral_average`, `lower_median` |
-| `--msms_avg` | MS/MS averaging method | `weighted` | `naive`, `weighted` |
+| `--pepmass` | Peptide mass calculation method | `lower_median` |
+| `--msms_avg` | MS/MS averaging method | `weighted` |
 
 ### Output Parameters
 
@@ -204,42 +202,28 @@ These parameters control how consensus spectra are generated from clusters.
 
 ## Output Structure
 
-The workflow generates the following outputs in the `--outdir` directory:
+### Full Mode
 
 ```
 results/
-├── project_msp_files/          # Project-level MSP files (one per project)
-│   ├── PXD004732_project.msp
-│   └── PXD004733_project.msp
-├── maracluster_results/        # Global MaRaCluster clustering results
-│   └── ...
-├── msp_files/                  # Global MSP files (by species/instrument/charge)
-│   └── ...
-└── pipeline_info/              # Pipeline execution metadata
+├── cluster_db/                     # Cluster database (per charge partition)
+│   └── partition__charge{N}/
+│       ├── cluster_metadata.parquet       # One row per cluster (consensus spectrum, purity, member count)
+│       └── psm_cluster_membership.parquet # One row per PSM (USI, cluster_id, sequence, q-value)
+├── maracluster_results/            # MaRaCluster raw output
+│   └── clusters_p30.tsv
+└── pipeline_info/                  # Pipeline execution metadata
     ├── execution_report.html
     ├── execution_timeline.html
     ├── execution_trace.txt
     └── pipeline_dag.html
 ```
 
-### Project-Level MSP Files
+### Incremental Mode
 
-Located in `project_msp_files/`, these files contain all clusters from a single project, organized by charge state and instrument. Each file is named `{project_id}_project.msp`.
-
-### Global MSP Files
-
-Located in `msp_files/`, these files contain clusters that span multiple projects, organized by species, instrument, and charge state. The directory structure is:
-```
-msp_files/
-└── {species}/
-    └── {instrument}/
-        └── {charge}/
-            └── *.msp
-```
+Same structure as full mode, with updated cluster metadata and membership parquets that include both existing and new PSMs.
 
 ## Profiles
-
-Profiles are used to configure the execution environment and container engine.
 
 ### Container Engine Profiles
 
@@ -278,57 +262,6 @@ nextflow run main.nf -profile singularity
 nextflow run main.nf -profile test,docker
 ```
 
-## Examples
-
-### Example 1: Basic Run with Docker
-
-```bash
-nextflow run main.nf \
-    --parquet_dir /data/quantms_projects \
-    --outdir ./results \
-    -profile docker
-```
-
-### Example 2: Custom Consensus Strategy
-
-```bash
-nextflow run main.nf \
-    --parquet_dir /data/quantms_projects \
-    --strategytype average \
-    --min_fraction 0.6 \
-    --dyn_range 2000 \
-    -profile docker
-```
-
-### Example 3: Stricter Clustering Threshold
-
-```bash
-nextflow run main.nf \
-    --parquet_dir /data/quantms_projects \
-    --maracluster_pvalue_threshold -12.0 \
-    --cluster_threshold 40 \
-    -profile docker
-```
-
-### Example 4: Using Singularity on HPC
-
-```bash
-nextflow run main.nf \
-    --parquet_dir /data/quantms_projects \
-    --outdir /scratch/results \
-    -profile singularity
-```
-
-### Example 5: Resume Failed Run
-
-```bash
-# If a run fails or is interrupted, resume it:
-nextflow run main.nf \
-    --parquet_dir /data/quantms_projects \
-    -profile docker \
-    -resume
-```
-
 ## Consensus Spectrum Strategies
 
 The workflow supports four different strategies for generating consensus spectra from clusters:
@@ -360,11 +293,8 @@ Choose the strategy based on your use case:
 3. **Memory errors during clustering**
    - Solution: Increase `--max_memory` or reduce the number of parallel processes.
 
-4. **Missing SDRF files**
-   - Solution: Ensure each project directory contains at least one `.sdrf.tsv` file.
-
-5. **Missing spectra in parquet files**
-   - Solution: Ensure parquet files contain `mz_array` and `intensity_array` columns.
+4. **Missing QPX parquet files**
+   - Solution: Ensure each project directory contains `.psm.parquet`, `.run.parquet`, and `.sample.parquet` files.
 
 ### Getting Help
 

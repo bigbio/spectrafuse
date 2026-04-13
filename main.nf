@@ -32,9 +32,8 @@ workflow BIGBIO_SPECTRAFUSE {
     SPECTRAFUSE(ch_projects, ch_parquet_dir)
 
     emit:
-    project_msp_files   = SPECTRAFUSE.out.project_msp_files
     maracluster_results = SPECTRAFUSE.out.maracluster_results
-    msp_files           = SPECTRAFUSE.out.msp_files
+    cluster_parquet     = SPECTRAFUSE.out.cluster_parquet
     versions            = SPECTRAFUSE.out.versions
 }
 
@@ -54,6 +53,10 @@ workflow {
     // Validate input parameters
     if (!params.parquet_dir) {
         error "Please provide a folder containing the files that will be clustered (--parquet_dir)"
+    }
+
+    if (params.mode == 'incremental' && !params.existing_cluster_db) {
+        error "Incremental mode requires --existing_cluster_db pointing to the existing cluster DB directory"
     }
 
     // Create channels for all items to be clustered
