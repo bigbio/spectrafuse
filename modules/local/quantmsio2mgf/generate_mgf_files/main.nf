@@ -3,8 +3,8 @@ process GENERATE_MGF_FILES {
     tag { meta.id }
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.2' :
-        'ghcr.io/bigbio/pyspectrafuse:0.0.2' }"
+        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.4' :
+        'ghcr.io/bigbio/pyspectrafuse:0.0.4' }"
     
     // Additional environment variables for Numba in containers
     // Disable JIT and caching to prevent issues when running as non-root user

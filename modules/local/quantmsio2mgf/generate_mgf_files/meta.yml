@@ -11,7 +11,7 @@ tools:
         A tool for converting parquet files from quantms reanalysis to MGF format.
         Part of the pyspectrafuse package, available in the pyspectrafuse container.
       homepage: https://github.com/bigbio/pyspectrafuse
-      container: ghcr.io/bigbio/pyspectrafuse:0.0.2
+      container: ghcr.io/bigbio/pyspectrafuse:0.0.4
 input:
   - file_input:
       type: directory

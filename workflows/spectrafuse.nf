@@ -16,6 +16,7 @@
 include { PARQUET_TO_DAT }       from '../modules/local/pyspectrafuse/parquet_to_dat/main'
 include { RUN_MARACLUSTER_DAT }  from '../modules/local/maracluster/run_maracluster_dat/main'
 include { BUILD_CLUSTER_DB }     from '../modules/local/pyspectrafuse/build_cluster_db/main'
+include { GENERATE_MSP_FORMAT }  from '../modules/local/pyspectrafuse/generate_msp_format/main'
 
 // ── Incremental mode ──
 include { GENERATE_MGF_FILES }       from '../modules/local/quantmsio2mgf/generate_mgf_files/main'
@@ -110,9 +111,14 @@ workflow SPECTRAFUSE_FULL {
     )
     ch_versions = ch_versions.mix(BUILD_CLUSTER_DB.out.versions)
 
+    // Step 5: Generate MSP consensus spectral library
+    GENERATE_MSP_FORMAT(ch_parquet_dir, RUN_MARACLUSTER_DAT.out.maracluster_results)
+    ch_versions = ch_versions.mix(GENERATE_MSP_FORMAT.out.versions)
+
     emit:
     maracluster_results = RUN_MARACLUSTER_DAT.out.maracluster_results
     cluster_parquet     = BUILD_CLUSTER_DB.out.cluster_metadata
+    msp_files           = GENERATE_MSP_FORMAT.out.msp_files
     versions            = ch_versions
 }
 
@@ -222,16 +228,19 @@ workflow SPECTRAFUSE {
         SPECTRAFUSE_INCREMENTAL(ch_projects, ch_parquet_dir)
         ch_results = SPECTRAFUSE_INCREMENTAL.out.maracluster_results
         ch_parquet = SPECTRAFUSE_INCREMENTAL.out.cluster_parquet
+        ch_msp     = channel.empty()
         ch_versions = SPECTRAFUSE_INCREMENTAL.out.versions
     } else {
         SPECTRAFUSE_FULL(ch_projects, ch_parquet_dir)
         ch_results = SPECTRAFUSE_FULL.out.maracluster_results
         ch_parquet = SPECTRAFUSE_FULL.out.cluster_parquet
+        ch_msp     = SPECTRAFUSE_FULL.out.msp_files
         ch_versions = SPECTRAFUSE_FULL.out.versions
     }
 
     emit:
     maracluster_results = ch_results
     cluster_parquet     = ch_parquet
+    msp_files           = ch_msp
     versions            = ch_versions
 }
