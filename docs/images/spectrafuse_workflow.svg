@@ -1,0 +1,310 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1050" width="900" height="1050">
+  <defs>
+    <style>
+      .station-label {
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+        font-size: 14px;
+        fill: #333;
+        font-weight: 600;
+      }
+      .station-sublabel {
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+        font-size: 11px;
+        fill: #777;
+      }
+      .tool-badge text {
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+        font-size: 8.5px;
+        font-weight: bold;
+        fill: #ffffff;
+      }
+      .legend-text {
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+        font-size: 12px;
+        fill: #555;
+      }
+      .legend-title {
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+        font-size: 13px;
+        font-weight: bold;
+        fill: #333;
+      }
+      .skip-label {
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+        font-size: 10px;
+        font-style: italic;
+        fill: #999;
+      }
+      .mode-label {
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+        font-size: 13px;
+        font-weight: bold;
+      }
+      .mode-sublabel {
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+        font-size: 10px;
+        font-style: italic;
+      }
+      .section-title {
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+        font-size: 11px;
+        font-weight: 600;
+        fill: #999;
+        letter-spacing: 1px;
+      }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="1050" fill="#ffffff"/>
+
+  <!-- Title -->
+  <text x="450" y="35" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="20" font-weight="bold" fill="#333">SpectrafUSE Pipeline Workflow</text>
+  <text x="450" y="52" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="11" fill="#888">Spectral clustering pipeline for PRIDE/MSnet proteomics reanalysis</text>
+
+  <!-- ==================== LEGEND (top right) ==================== -->
+  <g transform="translate(680, 70)">
+    <rect x="-10" y="-15" width="215" height="175" rx="6" fill="#f9f9f9" stroke="#e0e0e0" stroke-width="1"/>
+    <text x="0" y="0" class="legend-title">Legend</text>
+
+    <!-- Filled circle = Process -->
+    <circle cx="10" cy="22" r="6" fill="#666"/>
+    <text x="24" y="26" class="legend-text">Process / module</text>
+
+    <!-- Open circle = Output -->
+    <circle cx="10" cy="44" r="6" fill="none" stroke="#666" stroke-width="2"/>
+    <text x="24" y="48" class="legend-text">Output file</text>
+
+    <!-- Solid line -->
+    <line x1="2" y1="64" x2="18" y2="64" stroke="#666" stroke-width="4"/>
+    <text x="24" y="68" class="legend-text">Main flow</text>
+
+    <!-- Dashed line -->
+    <line x1="2" y1="86" x2="18" y2="86" stroke="#666" stroke-width="3" stroke-dasharray="6,3"/>
+    <text x="24" y="90" class="legend-text">Optional path</text>
+
+    <!-- Mode colors -->
+    <rect x="2" y="105" width="14" height="10" rx="2" fill="#00897B"/>
+    <text x="24" y="114" class="legend-text">Dat Bypass (recommended)</text>
+
+    <rect x="2" y="122" width="14" height="10" rx="2" fill="#43A047"/>
+    <text x="24" y="131" class="legend-text">Legacy MGF</text>
+
+    <rect x="2" y="139" width="14" height="10" rx="2" fill="#8E24AA"/>
+    <text x="24" y="148" class="legend-text">Incremental</text>
+  </g>
+
+  <!-- ==================== SHARED INPUT (Blue) ==================== -->
+  <!-- Input station -->
+  <circle cx="450" cy="100" r="9" fill="#1565C0"/>
+  <text x="450" y="96" text-anchor="end" dx="-18" class="station-label" fill="#1565C0">QPX Parquet Files</text>
+  <text x="450" y="112" text-anchor="end" dx="-18" class="station-sublabel">.psm.parquet + .run.parquet + .sample.parquet</text>
+
+  <!-- Line from input to router -->
+  <line x1="450" y1="109" x2="450" y2="155" stroke="#1565C0" stroke-width="5"/>
+
+  <!-- Mode Router Diamond -->
+  <polygon points="450,155 480,185 450,215 420,185" fill="none" stroke="#1565C0" stroke-width="2.5"/>
+  <text x="450" y="183" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#1565C0">--mode</text>
+  <text x="450" y="193" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="8" fill="#1565C0">--use_dat_bypass</text>
+
+  <!-- ==================== COLUMN HEADERS ==================== -->
+  <!-- Dat Bypass header -->
+  <text x="200" y="260" text-anchor="middle" class="mode-label" fill="#00897B">Dat Bypass Mode</text>
+  <text x="200" y="274" text-anchor="middle" class="mode-sublabel" fill="#00897B">(default, recommended)</text>
+
+  <!-- Legacy MGF header -->
+  <text x="450" y="260" text-anchor="middle" class="mode-label" fill="#43A047">Legacy MGF Mode</text>
+
+  <!-- Incremental header -->
+  <text x="700" y="260" text-anchor="middle" class="mode-label" fill="#8E24AA">Incremental Mode</text>
+
+  <!-- ==================== ROUTER TO COLUMNS ==================== -->
+  <!-- Router to Dat Bypass -->
+  <path d="M 435,200 Q 350,235 200,285" fill="none" stroke="#00897B" stroke-width="5"/>
+  <!-- Router to Legacy MGF -->
+  <line x1="450" y1="215" x2="450" y2="285" stroke="#43A047" stroke-width="5"/>
+  <!-- Router to Incremental -->
+  <path d="M 465,200 Q 550,235 700,285" fill="none" stroke="#8E24AA" stroke-width="5"/>
+
+  <!-- ==================== DAT BYPASS COLUMN (Teal) ==================== -->
+  <!-- Station 1: PARQUET_TO_DAT -->
+  <line x1="200" y1="295" x2="200" y2="390" stroke="#00897B" stroke-width="5"/>
+  <circle cx="200" cy="305" r="9" fill="#00897B"/>
+  <g class="tool-badge">
+    <rect x="100" y="295" width="85" height="16" rx="3" fill="#00897B"/>
+    <text x="142" y="306" text-anchor="middle">PARQUET_TO_DAT</text>
+  </g>
+  <text x="220" y="302" class="station-label">Parquet to .dat</text>
+  <text x="220" y="316" class="station-sublabel">15x smaller than MGF</text>
+
+  <!-- Station 2: Group by charge -->
+  <circle cx="200" cy="400" r="6" fill="#00897B"/>
+  <text x="220" y="397" class="station-sublabel" fill="#00897B" font-weight="600">Group by charge</text>
+
+  <line x1="200" y1="406" x2="200" y2="480" stroke="#00897B" stroke-width="5"/>
+
+  <!-- Station 3: RUN_MARACLUSTER_DAT -->
+  <circle cx="200" cy="490" r="9" fill="#00897B"/>
+  <g class="tool-badge">
+    <rect x="82" y="480" width="105" height="16" rx="3" fill="#00897B"/>
+    <text x="134" y="491" text-anchor="middle">RUN_MARACLUSTER_DAT</text>
+  </g>
+  <text x="220" y="487" class="station-label">MaRaCluster -D</text>
+  <text x="220" y="501" class="station-sublabel">reads .dat directly</text>
+
+  <line x1="200" y1="499" x2="200" y2="580" stroke="#00897B" stroke-width="5"/>
+
+  <!-- Station 4: BUILD_CLUSTER_DB -->
+  <circle cx="200" cy="590" r="9" fill="#00897B"/>
+  <g class="tool-badge">
+    <rect x="92" y="580" width="95" height="16" rx="3" fill="#00897B"/>
+    <text x="139" y="591" text-anchor="middle">BUILD_CLUSTER_DB</text>
+  </g>
+  <text x="220" y="587" class="station-label">Build Cluster DB</text>
+  <text x="220" y="601" class="station-sublabel">metadata + membership parquets</text>
+
+  <!-- ==================== LEGACY MGF COLUMN (Green) ==================== -->
+  <!-- Station 1: GENERATE_MGF_FILES -->
+  <line x1="450" y1="295" x2="450" y2="390" stroke="#43A047" stroke-width="5"/>
+  <circle cx="450" cy="305" r="9" fill="#43A047"/>
+  <g class="tool-badge">
+    <rect x="348" y="295" width="90" height="16" rx="3" fill="#43A047"/>
+    <text x="393" y="306" text-anchor="middle">GENERATE_MGF_FILES</text>
+  </g>
+  <text x="470" y="302" class="station-label">Parquet to MGF</text>
+  <text x="470" y="316" class="station-sublabel">grouped by species/instrument/charge</text>
+
+  <!-- Station 2: RUN_MARACLUSTER -->
+  <circle cx="450" cy="400" r="9" fill="#43A047"/>
+  <g class="tool-badge">
+    <rect x="355" y="390" width="80" height="16" rx="3" fill="#43A047"/>
+    <text x="395" y="401" text-anchor="middle">RUN_MARACLUSTER</text>
+  </g>
+  <text x="470" y="397" class="station-label">MaRaCluster</text>
+  <text x="470" y="411" class="station-sublabel">spectral clustering</text>
+
+  <!-- Branch: two parallel outputs from RUN_MARACLUSTER -->
+  <!-- Left branch to MSP -->
+  <path d="M 450,409 L 450,440 L 390,470" stroke="#43A047" stroke-width="5" fill="none"/>
+  <!-- Right branch to Cluster Parquet -->
+  <path d="M 450,409 L 450,440 L 510,470" stroke="#43A047" stroke-width="5" fill="none"/>
+
+  <!-- Station 3a: GENERATE_MSP_FORMAT -->
+  <line x1="390" y1="470" x2="390" y2="490" stroke="#43A047" stroke-width="5"/>
+  <circle cx="390" cy="490" r="9" fill="#43A047"/>
+  <g class="tool-badge">
+    <rect x="278" y="480" width="100" height="16" rx="3" fill="#43A047"/>
+    <text x="328" y="491" text-anchor="middle">GENERATE_MSP_FORMAT</text>
+  </g>
+  <text x="310" y="510" class="station-label">Consensus MSP</text>
+  <text x="310" y="524" class="station-sublabel">best/bin consensus spectra</text>
+
+  <!-- Station 3b: GENERATE_CLUSTER_PARQUET -->
+  <line x1="510" y1="470" x2="510" y2="490" stroke="#43A047" stroke-width="5"/>
+  <circle cx="510" cy="490" r="9" fill="#43A047"/>
+  <g class="tool-badge">
+    <rect x="524" y="480" width="120" height="16" rx="3" fill="#43A047"/>
+    <text x="584" y="491" text-anchor="middle">GENERATE_CLUSTER_PARQUET</text>
+  </g>
+  <text x="530" y="510" class="station-label">Cluster Parquet</text>
+  <text x="530" y="524" class="station-sublabel">cluster membership DB</text>
+
+  <!-- Merge back -->
+  <path d="M 390,499 L 390,550 L 450,580" stroke="#43A047" stroke-width="5" fill="none"/>
+  <path d="M 510,499 L 510,550 L 450,580" stroke="#43A047" stroke-width="5" fill="none"/>
+
+  <!-- ==================== INCREMENTAL COLUMN (Purple) ==================== -->
+  <!-- Split into two parallel inputs -->
+  <!-- Left rail: EXTRACT_REPRESENTATIVES -->
+  <path d="M 700,285 L 660,310" stroke="#8E24AA" stroke-width="5" fill="none"/>
+  <line x1="660" y1="310" x2="660" y2="390" stroke="#8E24AA" stroke-width="5"/>
+  <circle cx="660" cy="320" r="9" fill="#8E24AA"/>
+  <g class="tool-badge">
+    <rect x="540" y="310" width="108" height="16" rx="3" fill="#8E24AA"/>
+    <text x="594" y="321" text-anchor="middle">EXTRACT_REPRESENTATIVES</text>
+  </g>
+  <text x="608" y="338" class="station-label" text-anchor="end">Extract Reps</text>
+  <text x="608" y="352" class="station-sublabel" text-anchor="end">one spectrum per existing cluster</text>
+
+  <!-- Right rail: GENERATE_MGF_FILES (new data) -->
+  <path d="M 700,285 L 740,310" stroke="#8E24AA" stroke-width="5" fill="none"/>
+  <line x1="740" y1="310" x2="740" y2="390" stroke="#8E24AA" stroke-width="5"/>
+  <circle cx="740" cy="320" r="9" fill="#8E24AA"/>
+  <g class="tool-badge">
+    <rect x="755" y="310" width="90" height="16" rx="3" fill="#8E24AA"/>
+    <text x="800" y="321" text-anchor="middle">GENERATE_MGF_FILES</text>
+  </g>
+  <text x="755" y="338" class="station-label">New Data to MGF</text>
+  <text x="755" y="352" class="station-sublabel">convert new project PSMs</text>
+
+  <!-- Merge rails -->
+  <path d="M 660,390 L 700,420" stroke="#8E24AA" stroke-width="5" fill="none"/>
+  <path d="M 740,390 L 700,420" stroke="#8E24AA" stroke-width="5" fill="none"/>
+
+  <line x1="700" y1="420" x2="700" y2="490" stroke="#8E24AA" stroke-width="5"/>
+
+  <!-- Station 3: RUN_MARACLUSTER -->
+  <circle cx="700" cy="490" r="9" fill="#8E24AA"/>
+  <g class="tool-badge">
+    <rect x="605" y="480" width="80" height="16" rx="3" fill="#8E24AA"/>
+    <text x="645" y="491" text-anchor="middle">RUN_MARACLUSTER</text>
+  </g>
+  <text x="720" y="487" class="station-label">MaRaCluster</text>
+  <text x="720" y="501" class="station-sublabel">reps + new data together</text>
+
+  <line x1="700" y1="499" x2="700" y2="580" stroke="#8E24AA" stroke-width="5"/>
+
+  <!-- Station 4: MERGE_INCREMENTAL -->
+  <circle cx="700" cy="590" r="9" fill="#8E24AA"/>
+  <g class="tool-badge">
+    <rect x="592" y="580" width="95" height="16" rx="3" fill="#8E24AA"/>
+    <text x="639" y="591" text-anchor="middle">MERGE_INCREMENTAL</text>
+  </g>
+  <text x="720" y="587" class="station-label">Merge Clusters</text>
+  <text x="720" y="601" class="station-sublabel">resolve IDs, update membership</text>
+
+  <!-- ==================== EXISTING CLUSTER DB INPUT (Purple, dashed) ==================== -->
+  <circle cx="830" cy="260" r="8" fill="none" stroke="#8E24AA" stroke-width="2"/>
+  <text x="830" y="255" text-anchor="middle" class="station-sublabel" fill="#8E24AA">Existing</text>
+  <text x="830" y="245" text-anchor="middle" class="station-sublabel" fill="#8E24AA">Cluster DB</text>
+  <line x1="820" y1="268" x2="670" y2="312" stroke="#8E24AA" stroke-width="3" stroke-dasharray="6,3"/>
+
+  <!-- ==================== SHARED OUTPUTS (Orange) ==================== -->
+  <text x="450" y="680" text-anchor="middle" class="section-title" fill="#999">OUTPUTS</text>
+
+  <!-- Convergence lines to outputs -->
+  <!-- Dat Bypass to Cluster DB -->
+  <path d="M 200,599 L 200,720 L 310,740" stroke="#00897B" stroke-width="5" fill="none"/>
+  <!-- Legacy MGF to Cluster DB -->
+  <path d="M 450,580 L 450,700 L 390,740" stroke="#43A047" stroke-width="5" fill="none"/>
+  <!-- Incremental to Cluster DB -->
+  <path d="M 700,599 L 700,720 L 440,740" stroke="#8E24AA" stroke-width="5" fill="none"/>
+
+  <!-- Output 1: Cluster DB -->
+  <circle cx="370" cy="750" r="8" fill="none" stroke="#F57C00" stroke-width="2.5"/>
+  <text x="390" y="747" class="station-label" fill="#F57C00">Cluster DB</text>
+  <text x="390" y="763" class="station-sublabel">cluster_metadata.parquet + psm_cluster_membership.parquet</text>
+
+  <!-- Output 2: MaRaCluster Results -->
+  <!-- Lines from all three modes -->
+  <path d="M 200,720 L 310,810" stroke="#00897B" stroke-width="5" fill="none"/>
+  <path d="M 450,700 L 390,810" stroke="#43A047" stroke-width="5" fill="none"/>
+  <path d="M 700,720 L 440,810" stroke="#8E24AA" stroke-width="5" fill="none"/>
+
+  <circle cx="370" cy="820" r="8" fill="none" stroke="#F57C00" stroke-width="2.5"/>
+  <text x="390" y="817" class="station-label" fill="#F57C00">MaRaCluster Results</text>
+  <text x="390" y="833" class="station-sublabel">clusters_pN.tsv</text>
+
+  <!-- Output 3: Consensus MSP (Legacy MGF only) -->
+  <path d="M 450,700 L 450,880 L 410,900" stroke="#43A047" stroke-width="3" stroke-dasharray="6,3" fill="none"/>
+  <circle cx="370" cy="900" r="8" fill="none" stroke="#F57C00" stroke-width="2.5"/>
+  <text x="390" y="897" class="station-label" fill="#F57C00">Consensus MSP</text>
+  <text x="390" y="913" class="station-sublabel">.msp spectral library</text>
+  <text x="390" y="928" class="skip-label">(Legacy MGF mode only)</text>
+
+  <!-- ==================== FOOTER ==================== -->
+  <text x="450" y="980" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" fill="#bbb">SpectrafUSE v0.0.4 -- Nextflow DSL2 Workflow</text>
+  <text x="450" y="995" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" fill="#ccc">dat bypass eliminates MGF text inflation (15x size reduction, 12.8M PSMs = 1.3 GB .dat vs 85 GB MGF)</text>
+
+</svg>
