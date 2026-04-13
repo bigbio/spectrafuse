@@ -10,7 +10,7 @@ quantms has reanalyzed an extensive number of datasets with almost 1 billion MS/
 
 ![SpectrafUSE Workflow](docs/images/spectrafuse_workflow.svg)
 
-The pipeline converts QPX parquet files directly into MaRaCluster's internal `.dat` binary format, bypassing MGF text files entirely. This **dat bypass** approach is 15x smaller than MGF (100 bytes/spectrum vs ~1.5 KB), making it feasible to cluster datasets with millions of PSMs on standard hardware.
+The pipeline converts QPX parquet files directly into MaRaCluster's internal `.dat` binary format (~100 bytes/spectrum), making it feasible to cluster datasets with millions of PSMs on standard hardware.
 
 The pipeline supports three modes:
 
@@ -30,7 +30,7 @@ Adds new data to an existing cluster DB without re-clustering everything.
 
 1. **Extract Representatives** (`EXTRACT_REPRESENTATIVES`): Reads cluster metadata and writes one consensus spectrum per existing cluster.
 
-2. **Convert New Data** (`GENERATE_MGF_FILES`): Converts new project PSMs to charge-specific MGFs.
+2. **Convert New Data**: Converts new project PSMs to charge-specific spectrum files.
 
 3. **MaRaCluster** (`RUN_MARACLUSTER`): Clusters representatives + new data together. Representatives that land in the same new cluster as new spectra link those spectra to the existing cluster.
 
@@ -38,7 +38,7 @@ Adds new data to an existing cluster DB without re-clustering everything.
 
 ### Key Features
 
-- **No MGF intermediate files**: The dat bypass eliminates MGF text inflation (12.8M PSMs = 1.3 GB `.dat` vs ~85 GB MGF)
+- **Compact binary format**: Parquet-to-dat conversion produces ~1.3 GB for 12.8M PSMs
 - **Incremental clustering**: Add new datasets without re-clustering existing data
 - **Parallel processing**: Projects and charge partitions are processed in parallel
 - **Partitioned by metadata**: Clustering is performed separately for each species/instrument/charge combination
@@ -93,7 +93,7 @@ cd spectrafuse
 
 ## Usage
 
-### Full Mode (dat bypass, default)
+### Full Mode (default)
 
 ```bash
 nextflow run main.nf \
