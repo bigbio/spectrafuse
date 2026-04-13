@@ -36,21 +36,11 @@ jobs:
 
       - name: Validate pipeline syntax (preview mode)
         run: |
-          nextflow run ${GITHUB_WORKSPACE} \
-            -preview \
-            --parquet_dir ${GITHUB_WORKSPACE}/test_data \                                                                                     
-            --default_species "Homo sapiens" \
-            --default_instrument "Q Exactive HF"                                                                                              
+          nextflow run ${GITHUB_WORKSPACE} -preview --parquet_dir ${GITHUB_WORKSPACE}/test_data --default_species "Homo sapiens" --default_instrument "Q Exactive HF"                                                                                              
                                                             
       - name: Validate incremental mode syntax
         run: |
-          nextflow run ${GITHUB_WORKSPACE} \                                                                                                  
-            -preview \
-            --parquet_dir ${GITHUB_WORKSPACE}/test_data \                                                                                     
-            --mode incremental \                          
-            --existing_cluster_db ${GITHUB_WORKSPACE}/test_data \
-            --default_species "Homo sapiens" \
-            --default_instrument "Q Exactive HF"                                                                                              
+          nextflow run ${GITHUB_WORKSPACE} -preview --parquet_dir ${GITHUB_WORKSPACE}/test_data --mode incremental --existing_cluster_db ${GITHUB_WORKSPACE}/test_data --default_species "Homo sapiens" --default_instrument "Q Exactive HF"                                                                                              
   
   test-data-check:                                                                                                                            
     name: Validate test data format                       
@@ -126,12 +116,7 @@ jobs:
       - name: Run pipeline with test data
         timeout-minutes: 30
         run: |
-          nextflow run ${GITHUB_WORKSPACE} \
-            -profile docker \                                                                                                                 
-            --parquet_dir ${GITHUB_WORKSPACE}/test_data \
-            --default_species "Homo sapiens" \                                                                                                
-            --default_instrument "Q Exactive HF" \        
-            --outdir test_results                                                                                                             
+          nextflow run ${GITHUB_WORKSPACE} -profile docker --parquet_dir ${GITHUB_WORKSPACE}/test_data --default_species "Homo sapiens" --default_instrument "Q Exactive HF" --outdir test_results                                                                                                             
    
       - name: Gather failed logs                                                                                                              
         if: failure() || cancelled()                      
