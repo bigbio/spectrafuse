@@ -1,130 +1,167 @@
-name: nf-core CI
-# This workflow runs the pipeline with the minimal test dataset to check that it completes without any syntax errors
-on:
-  push:
-    branches:
-      - dev
-      - main
-  pull_request:
-  workflow_dispatch:
+name: nf-core CI                                                                                                                              
+  # Validates that the pipeline syntax is correct and test data is well-formed                                                                  
+  on:                                                                                                                                           
+    push:                                                   
+      branches:
+        - dev
+        - main
+    pull_request:
+    workflow_dispatch:
 
-env:
-  NXF_ANSI_LOG: false
-  NXF_SINGULARITY_CACHEDIR: ${{ github.workspace }}/.singularity
-  NXF_SINGULARITY_LIBRARYDIR: ${{ github.workspace }}/.singularity
+  env:
+    NXF_ANSI_LOG: false
+                                                                                                                                                
+  concurrency:
+    group: "${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}"                                                       
+    cancel-in-progress: true                                
 
-concurrency:
-  group: "${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}"
-  cancel-in-progress: true
+  jobs:
+    syntax-check:
+      name: Nextflow syntax validation
+      runs-on: ubuntu-latest                                                                                                                    
+      steps:
+        - name: Check out pipeline code                                                                                                         
+          uses: actions/checkout@v4                         
+          with:
+            fetch-depth: 0
 
-jobs:
-  test:
-    env:
-      NXF_ANSI_LOG: false
-      CAPSULE_LOG: none
-      TEST_PROFILE: ${{ matrix.test_profile }}
-      EXEC_PROFILE: ${{ matrix.exec_profile }}
+        - uses: actions/setup-java@v4
+          with:
+            distribution: "temurin"                                                                                                             
+            java-version: "17"
+                                                                                                                                                
+        - name: Set up Nextflow                             
+          uses: nf-core/setup-nextflow@v2
+          with:
+            version: "25.04.0"
 
-    name: Run pipeline with test data
-    if: ${{ github.event_name != 'push' || (github.event_name == 'push' && github.repository == 'bigbio/spectrafuse') }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        NXF_VER:
-          - "25.04.0"
-        test_profile:
-          - "test"
-        exec_profile: ["docker"] # extended ci tests singularity.
+        - name: Validate pipeline syntax (preview mode)                                                                                         
+          run: |
+            nextflow run ${GITHUB_WORKSPACE} \                                                                                                  
+              -preview \                                    
+              --parquet_dir ${GITHUB_WORKSPACE}/test_data \
+              --default_species "Homo sapiens" \
+              --default_instrument "Q Exactive HF"
+                                                                                                                                                
+        - name: Validate incremental mode syntax
+          run: |                                                                                                                                
+            nextflow run ${GITHUB_WORKSPACE} \              
+              -preview \
+              --parquet_dir ${GITHUB_WORKSPACE}/test_data \
+              --mode incremental \                                                                                                              
+              --existing_cluster_db ${GITHUB_WORKSPACE}/test_data \
+              --default_species "Homo sapiens" \                                                                                                
+              --default_instrument "Q Exactive HF"          
 
-    steps:
-      - name: Check out pipeline code
-        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4
-        with:
-          fetch-depth: 0
+    test-data-check:
+      name: Validate test data format
+      runs-on: ubuntu-latest                                                                                                                    
+      steps:
+        - name: Check out pipeline code                                                                                                         
+          uses: actions/checkout@v4                         
 
-      - uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: "17"
+        - name: Set up Python
+          uses: actions/setup-python@v5
+          with:
+            python-version: "3.11"
+                                                                                                                                                
+        - name: Install dependencies
+          run: pip install pyarrow                                                                                                              
+                                                            
+        - name: Validate QPX test data schema
+          run: |
+            python -c "
+            import pyarrow.parquet as pq
+            import sys
+                                                                                                                                                
+            # Validate PSM parquet
+            psm = pq.read_table('test_data/TEST001/TEST001.psm.parquet')                                                                        
+            required_cols = ['usi', 'run_file_name', 'sequence', 'charge',
+                             'exp_mass_to_charge', 'mz_array', 'intensity_array']                                                               
+            for col in required_cols:
+                assert col in psm.column_names, f'Missing column: {col}'                                                                        
+            assert len(psm) > 0, 'PSM table is empty'       
+            print(f'PSM parquet: {len(psm)} rows, columns: {psm.column_names}')                                                                 
+   
+            # Validate run parquet                                                                                                              
+            run = pq.read_table('test_data/TEST001/TEST001.run.parquet')
+            assert 'run_file_name' in run.column_names                                                                                          
+            assert 'instrument' in run.column_names
+            print(f'Run parquet: {len(run)} rows, columns: {run.column_names}')                                                                 
+                                                                                                                                                
+            # Validate sample parquet
+            sample = pq.read_table('test_data/TEST001/TEST001.sample.parquet')                                                                  
+            assert 'run_file_name' in sample.column_names   
+            assert 'organism' in sample.column_names
+            print(f'Sample parquet: {len(sample)} rows, columns: {sample.column_names}')                                                        
+   
+            print('All QPX test data validated successfully.')                                                                                  
+            "                                               
 
-      - name: Set up Nextflow
-        uses: nf-core/setup-nextflow@v2
-        with:
-          version: "${{ matrix.NXF_VER }}"
+    pipeline-test:
+      name: Run pipeline with test data
+      needs: [syntax-check, test-data-check]
+      runs-on: ubuntu-latest                                                                                                                    
+      strategy:
+        fail-fast: false                                                                                                                        
+        matrix:                                             
+          NXF_VER:
+            - "25.04.0"
 
-      - name: Set up Singularity
-        if: matrix.exec_profile == 'singularity'
-        run: |
-          mkdir -p $NXF_SINGULARITY_CACHEDIR
-          mkdir -p $NXF_SINGULARITY_LIBRARYDIR
+      steps:
+        - name: Check out pipeline code
+          uses: actions/checkout@v4                                                                                                             
+          with:
+            fetch-depth: 0                                                                                                                      
+                                                            
+        - uses: actions/setup-java@v4
+          with:
+            distribution: "temurin"
+            java-version: "17"
 
-      - name: Disk space cleanup
-        uses: jlumbroso/free-disk-space@v1.3.1
+        - name: Set up Nextflow                                                                                                                 
+          uses: nf-core/setup-nextflow@v2
+          with:                                                                                                                                 
+            version: "${{ matrix.NXF_VER }}"                
 
-      - name: Download test data from FTP server
-        run: |
-          mkdir -p test_data/PXD004732
-          cd test_data/PXD004732
-          
-          # Download parquet file
-          echo "Downloading parquet file..."
-          wget -q --show-progress https://ftp.pride.ebi.ac.uk/pub/databases/pride/resources/proteomes/spectrafuse-ci-github/PXD004732.parquet -O PXD004732.parquet
-          
-          # Download SDRF file
-          echo "Downloading SDRF file..."
-          wget -q --show-progress https://ftp.pride.ebi.ac.uk/pub/databases/pride/resources/proteomes/spectrafuse-ci-github/PXD004732.sdrf.tsv -O PXD004732.sdrf.tsv
-          
-          # Verify files were downloaded
-          ls -lh
-          file PXD004732.parquet
-          file PXD004732.sdrf.tsv
-          
-          cd ../..
-
-      - name: Run pipeline with test data in docker/singularity profile
-        if: github.event.pull_request.base.ref != 'main'
-        timeout-minutes: 120
-        run: |
-          nextflow run ${GITHUB_WORKSPACE} -profile $TEST_PROFILE,$EXEC_PROFILE --outdir ${TEST_PROFILE}_${EXEC_PROFILE}_results
-
-      - name: Gather failed logs
-        if: failure() || cancelled()
-        run: |
-          mkdir failed_logs
-          failed=$(grep "FAILED" ${TEST_PROFILE}_${EXEC_PROFILE}_results/pipeline_info/execution_trace.txt | cut -f 2)
-          while read -r line ; do cp $(ls work/${line}*/*.log) failed_logs/ | true ; done <<< "$failed"
-
-      - name: Set timestamp
-        run: |
-          echo "ARTIFACT_TIMESTAMP=$(date +%s)" >> $GITHUB_ENV
-
-      - uses: actions/upload-artifact@v4
-        if: failure() || cancelled()
-        name: Upload failed logs
-        with:
-          name: failed_logs_${{ matrix.test_profile }}_${{ matrix.NXF_VER }}_${{ github.run_id }}_${{ github.run_attempt }}_${{ env.ARTIFACT_TIMESTAMP }}
-          include-hidden-files: true
-          path: failed_logs
-          overwrite: false
-          if-no-files-found: warn
-
-      - uses: actions/upload-artifact@v4
-        if: success()
-        name: Upload results
-        with:
-          name: ${{ matrix.test_profile }}_${{ matrix.NXF_VER }}_${{ github.run_id }}_${{ github.run_attempt }}_${{ env.ARTIFACT_TIMESTAMP }}_results
-          include-hidden-files: true
-          path: ${{ matrix.test_profile }}_${{ matrix.exec_profile }}_results
-          overwrite: false
-          if-no-files-found: warn
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        name: Upload log
-        with:
-          name: nextflow_${{ matrix.test_profile }}_${{ matrix.NXF_VER }}_${{ github.run_id }}_${{ github.run_attempt }}_${{ env.ARTIFACT_TIMESTAMP }}.log
-          include-hidden-files: true
-          path: .nextflow.log
-          overwrite: false
-          if-no-files-found: warn
+        - name: Disk space cleanup
+          uses: jlumbroso/free-disk-space@v1.3.1
+                                                                                                                                                
+        - name: Run pipeline with test data
+          timeout-minutes: 30                                                                                                                   
+          run: |                                            
+            nextflow run ${GITHUB_WORKSPACE} \
+              -profile docker \
+              --parquet_dir ${GITHUB_WORKSPACE}/test_data \
+              --default_species "Homo sapiens" \                                                                                                
+              --default_instrument "Q Exactive HF" \
+              --outdir test_results                                                                                                             
+                                                            
+        - name: Gather failed logs
+          if: failure() || cancelled()
+          run: |
+            mkdir -p failed_logs                                                                                                                
+            if [ -f test_results/pipeline_info/execution_trace*.txt ]; then
+              failed=$(grep "FAILED" test_results/pipeline_info/execution_trace*.txt | cut -f 2 || true)                                        
+              while read -r line ; do                       
+                [ -n "$line" ] && cp $(ls work/${line}*/*.log 2>/dev/null) failed_logs/ 2>/dev/null || true                                     
+              done <<< "$failed"
+            fi                                                                                                                                  
+                                                            
+        - uses: actions/upload-artifact@v4                                                                                                      
+          if: failure() || cancelled()
+          name: Upload failed logs                                                                                                              
+          with:                                             
+            name: failed_logs_${{ matrix.NXF_VER }}_${{ github.run_id }}
+            include-hidden-files: true
+            path: failed_logs
+            if-no-files-found: warn                                                                                                             
+   
+        - uses: actions/upload-artifact@v4                                                                                                      
+          if: always()                                      
+          name: Upload nextflow log
+          with:
+            name: nextflow_log_${{ matrix.NXF_VER }}_${{ github.run_id }}
+            include-hidden-files: true                                                                                                          
+            path: .nextflow.log
+            if-no-files-found: warn  
