@@ -4,35 +4,30 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     Spectral clustering using MaRaCluster.
 
-    Three modes (params.mode + params.use_dat_bypass):
-    - Full + dat bypass (default): Parquet → .dat → MaRaCluster → Cluster DB
-    - Full + legacy MGF: Parquet → MGF → MaRaCluster → MSP + Cluster Parquet
+    Two modes (params.mode):
+    - Full (default): Parquet → .dat → MaRaCluster → Cluster DB
     - Incremental: Extract reps → cluster with new data → merge back
 
     All modes partition by species/instrument/charge.
 ----------------------------------------------------------------------------------------
 */
 
-// ── Full mode: dat bypass ──
+// ── Full mode: parquet-to-dat ──
 include { PARQUET_TO_DAT }       from '../modules/local/pyspectrafuse/parquet_to_dat/main'
 include { RUN_MARACLUSTER_DAT }  from '../modules/local/maracluster/run_maracluster_dat/main'
 include { BUILD_CLUSTER_DB }     from '../modules/local/pyspectrafuse/build_cluster_db/main'
 
-// ── Full mode: legacy MGF (also used for incremental new data) ──
+// ── Incremental mode ──
 include { GENERATE_MGF_FILES }       from '../modules/local/quantmsio2mgf/generate_mgf_files/main'
 include { RUN_MARACLUSTER }          from '../modules/local/maracluster/run_maracluster/main'
-include { GENERATE_MSP_FORMAT }      from '../modules/local/pyspectrafuse/generate_msp_format/main'
-include { GENERATE_CLUSTER_PARQUET } from '../modules/local/pyspectrafuse/generate_cluster_parquet/main'
-
-// ── Incremental mode ──
 include { EXTRACT_REPRESENTATIVES }  from '../modules/local/pyspectrafuse/extract_representatives/main'
 include { MERGE_INCREMENTAL }        from '../modules/local/pyspectrafuse/merge_incremental/main'
 
 
-workflow SPECTRAFUSE_DAT {
+workflow SPECTRAFUSE_FULL {
     /*
-     * FULL MODE — DAT BYPASS (recommended)
-     * Parquet → .dat (15x smaller) → MaRaCluster -D → Cluster DB
+     * FULL MODE
+     * Parquet → .dat → MaRaCluster -D → Cluster DB
      */
     take:
     ch_projects
@@ -122,62 +117,6 @@ workflow SPECTRAFUSE_DAT {
 }
 
 
-workflow SPECTRAFUSE_MGF {
-    /*
-     * FULL MODE — LEGACY MGF
-     * Parquet → MGF → MaRaCluster → MSP + Cluster Parquet
-     */
-    take:
-    ch_projects
-    ch_parquet_dir
-
-    main:
-    ch_versions = channel.empty()
-
-    ch_projects
-        .map { project_dir -> [ [ id: project_dir.baseName ], project_dir ] }
-        .set { ch_projects_with_meta }
-
-    GENERATE_MGF_FILES(ch_projects_with_meta)
-    ch_versions = ch_versions.mix(GENERATE_MGF_FILES.out.versions)
-
-    GENERATE_MGF_FILES.out.mgf_files
-        .flatten()
-        .map { file ->
-            def pathParts = file.toString().split('/')
-            def idx = pathParts.findIndexOf { it == 'mgf_output' }
-            if (idx == -1) return null
-
-            def species = pathParts[idx + 1]
-            def instrument = params.skip_instrument ? 'all_instruments' : pathParts[idx + 2]
-            def charge = pathParts[idx + 3]
-            def key = params.skip_instrument
-                ? "${species}/${charge}" : "${species}/${instrument}/${charge}"
-            def id = key.replaceAll(/[\\/]/, '__').replaceAll(/\s+/, '_')
-            def meta = [ id: id, species: species, instrument: instrument, charge: charge ]
-            return [key, meta, file]
-        }
-        .filter { it != null }
-        .groupTuple(by: 0)
-        .map { _key, meta_list, files -> [meta_list[0], files] }
-        .set { ch_grouped_mgf }
-
-    RUN_MARACLUSTER(ch_grouped_mgf)
-    ch_versions = ch_versions.mix(RUN_MARACLUSTER.out.versions)
-
-    GENERATE_MSP_FORMAT(ch_parquet_dir, RUN_MARACLUSTER.out.maracluster_results)
-    ch_versions = ch_versions.mix(GENERATE_MSP_FORMAT.out.versions)
-
-    GENERATE_CLUSTER_PARQUET(ch_parquet_dir, RUN_MARACLUSTER.out.maracluster_results)
-    ch_versions = ch_versions.mix(GENERATE_CLUSTER_PARQUET.out.versions)
-
-    emit:
-    maracluster_results = RUN_MARACLUSTER.out.maracluster_results
-    cluster_parquet     = GENERATE_CLUSTER_PARQUET.out.cluster_parquet_files
-    versions            = ch_versions
-}
-
-
 workflow SPECTRAFUSE_INCREMENTAL {
     /*
      * INCREMENTAL MODE
@@ -209,7 +148,7 @@ workflow SPECTRAFUSE_INCREMENTAL {
     )
     ch_versions = ch_versions.mix(EXTRACT_REPRESENTATIVES.out.versions)
 
-    // Step 2: Convert new data to MGF
+    // Step 2: Convert new data to spectrum files
     ch_projects
         .map { project_dir -> [ [ id: project_dir.baseName ], project_dir ] }
         .set { ch_projects_with_meta }
@@ -217,7 +156,7 @@ workflow SPECTRAFUSE_INCREMENTAL {
     GENERATE_MGF_FILES(ch_projects_with_meta)
     ch_versions = ch_versions.mix(GENERATE_MGF_FILES.out.versions)
 
-    // Step 3: Group new MGFs by partition key
+    // Step 3: Group new spectra by partition key
     GENERATE_MGF_FILES.out.mgf_files
         .flatten()
         .map { file ->
@@ -233,18 +172,18 @@ workflow SPECTRAFUSE_INCREMENTAL {
         }
         .filter { it != null }
         .groupTuple()
-        .set { ch_new_mgf }
+        .set { ch_new_spectra }
 
-    // Combine reps + new MGFs
+    // Combine reps + new spectra
     EXTRACT_REPRESENTATIVES.out.representative_mgf
         .map { meta, mgf -> [meta.id, meta, mgf] }
-        .join(ch_new_mgf)
-        .map { _id, meta, rep_mgf, new_mgfs ->
-            [meta, [rep_mgf, new_mgfs].flatten()]
+        .join(ch_new_spectra)
+        .map { _id, meta, rep_mgf, new_files ->
+            [meta, [rep_mgf, new_files].flatten()]
         }
-        .set { ch_combined_mgf }
+        .set { ch_combined_spectra }
 
-    RUN_MARACLUSTER(ch_combined_mgf)
+    RUN_MARACLUSTER(ch_combined_spectra)
     ch_versions = ch_versions.mix(RUN_MARACLUSTER.out.versions)
 
     // Step 4: Merge
@@ -284,16 +223,11 @@ workflow SPECTRAFUSE {
         ch_results = SPECTRAFUSE_INCREMENTAL.out.maracluster_results
         ch_parquet = SPECTRAFUSE_INCREMENTAL.out.cluster_parquet
         ch_versions = SPECTRAFUSE_INCREMENTAL.out.versions
-    } else if (params.use_dat_bypass) {
-        SPECTRAFUSE_DAT(ch_projects, ch_parquet_dir)
-        ch_results = SPECTRAFUSE_DAT.out.maracluster_results
-        ch_parquet = SPECTRAFUSE_DAT.out.cluster_parquet
-        ch_versions = SPECTRAFUSE_DAT.out.versions
     } else {
-        SPECTRAFUSE_MGF(ch_projects, ch_parquet_dir)
-        ch_results = SPECTRAFUSE_MGF.out.maracluster_results
-        ch_parquet = SPECTRAFUSE_MGF.out.cluster_parquet
-        ch_versions = SPECTRAFUSE_MGF.out.versions
+        SPECTRAFUSE_FULL(ch_projects, ch_parquet_dir)
+        ch_results = SPECTRAFUSE_FULL.out.maracluster_results
+        ch_parquet = SPECTRAFUSE_FULL.out.cluster_parquet
+        ch_versions = SPECTRAFUSE_FULL.out.versions
     }
 
     emit:
