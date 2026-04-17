@@ -1,4 +1,4 @@
-process BUILD_CLUSTER_DB {
+process RESOLVE_AND_MERGE_INCREMENTAL {
     label 'process_medium'
     tag { meta.id }
     publishDir "${params.outdir}/cluster_db/${meta.charge}", mode: params.publish_dir_mode, pattern: "cluster_db/*.parquet"
@@ -12,24 +12,13 @@ process BUILD_CLUSTER_DB {
         '-e NUMBA_DISABLE_JIT=1 -e NUMBA_DISABLE_CACHING=1 -e NUMBA_CACHE_DIR=/tmp'
 
     input:
-    tuple val(meta), path(cluster_tsv), path(scan_titles), path(parquet_dirs)
+    tuple val(meta), path(cluster_tsv), path(scan_titles), path(existing_metadata), path(existing_membership), path(parquet_dirs)
 
     output:
-    tuple val(meta), path("cluster_db/cluster_metadata.parquet"),         emit: cluster_metadata
-    tuple val(meta), path("cluster_db/psm_cluster_membership.parquet"),   emit: psm_membership
-    path "versions.yml",                                                   emit: versions
+    path "cluster_db/**/*.parquet", emit: cluster_parquet_files
+    path "versions.yml",           emit: versions
 
     script:
-    // Build --scan_titles and --parquet_dir and --dataset_name args from the lists
-    def titles_args = scan_titles instanceof List ?
-        scan_titles.collect { "--scan_titles ${it}" }.join(' ') :
-        "--scan_titles ${scan_titles}"
-    def dir_args = parquet_dirs instanceof List ?
-        parquet_dirs.collect { "--parquet_dir ${it}" }.join(' ') :
-        "--parquet_dir ${parquet_dirs}"
-    def name_args = parquet_dirs instanceof List ?
-        parquet_dirs.collect { "--dataset_name ${it.baseName}" }.join(' ') :
-        "--dataset_name ${parquet_dirs.baseName}"
     def args = task.ext.args ?: ''
 
     """
@@ -37,16 +26,23 @@ process BUILD_CLUSTER_DB {
     export NUMBA_DISABLE_CACHING=1
     export NUMBA_CACHE_DIR=/tmp
 
-    pyspectrafuse build-cluster-db \
+    # Stage all scan_titles into a single directory for the CLI
+    mkdir -p scan_titles_collected
+    for st in ${scan_titles}; do
+        cp "\$st" scan_titles_collected/
+    done
+
+    pyspectrafuse incremental merge-clusters \
         --cluster_tsv ${cluster_tsv} \
-        ${titles_args} \
-        ${dir_args} \
-        ${name_args} \
+        --scan_titles_dir scan_titles_collected \
+        --existing_metadata ${existing_metadata} \
+        --existing_membership ${existing_membership} \
+        --new_parquet_dir ${parquet_dirs} \
         --species "${meta.species}" \
         --instrument "${meta.instrument}" \
         --charge "${meta.charge}" \
         --method_type "${params.strategytype}" \
-        --output_dir cluster_db \
+        --output_dir cluster_db/${meta.species}/${meta.instrument}/${meta.charge} \
         ${args}
 
     PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.4")

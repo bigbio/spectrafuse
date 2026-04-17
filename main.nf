@@ -60,8 +60,9 @@ workflow {
     }
 
     // Create channels for all items to be clustered
-    // Use glob pattern to find directories - more idiomatic Nextflow than file system operations
+    // Exclude output directories (msp/, cluster_db/) that may exist inside project dirs
     ch_projects = channel.fromPath("${params.parquet_dir}/*", type: 'dir')
+        .filter { dir -> !(dir.name in ['msp', 'cluster_db', 'msp_output', 'dat_output']) }
 
     // Dump parameters to JSON file for documenting the pipeline settings
     UTILS_NEXTFLOW_PIPELINE (

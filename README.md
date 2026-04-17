@@ -10,37 +10,55 @@ quantms has reanalyzed an extensive number of datasets with almost 1 billion MS/
 
 ![SpectrafUSE Workflow](docs/images/spectrafuse_workflow.svg)
 
-The pipeline converts QPX parquet files directly into MaRaCluster's internal `.dat` binary format (~100 bytes/spectrum), making it feasible to cluster datasets with millions of PSMs on standard hardware.
+The pipeline converts QPX parquet files directly into MaRaCluster's internal `.dat` binary format (~100 bytes/spectrum), making it feasible to cluster datasets with millions of PSMs on standard hardware. DuckDB powers all aggregation and I/O operations for efficient performance at any scale.
 
-The pipeline supports three modes:
+The pipeline supports two modes:
 
 ### Full Mode (default)
 
-Parquet &rarr; `.dat` &rarr; MaRaCluster &rarr; Cluster DB
+```
+Parquet → .dat → Split m/z Windows → MaRaCluster (per window) → Merge Windows → Cluster DB
+```
 
-1. **Parquet to Dat** (`PARQUET_TO_DAT`): Converts PSM parquet files directly to MaRaCluster's binary `.dat` format, optionally filtering by charge state. Replicates MaRaCluster's internal binning algorithm (`bin = floor(mz / 1.000508 + 0.32)`, top-40 peaks).
+1. **Parquet to Dat** (`PARQUET_TO_DAT`): Converts PSM parquet files directly to MaRaCluster's binary `.dat` format, filtering by charge state. Replicates MaRaCluster's internal binning algorithm (`bin = floor(mz / 1.000508 + 0.32)`, top-40 peaks).
 
-2. **MaRaCluster** (`RUN_MARACLUSTER_DAT`): Clusters spectra using the `-D` flag to read pre-existing `.dat` files, skipping MaRaCluster's own file conversion step.
+2. **Split m/z Windows** (`SPLIT_MZ_WINDOWS`): Splits each charge partition's `.dat` files into overlapping precursor m/z windows (default: 300 Da wide, 1 Da overlap). This enables parallel MaRaCluster execution — spectra far apart in m/z can never cluster together (MaRaCluster uses 20 ppm precursor tolerance), so windowing formalizes this for Nextflow parallelism.
 
-3. **Build Cluster DB** (`BUILD_CLUSTER_DB`): Generates `cluster_metadata.parquet` and `psm_cluster_membership.parquet` from MaRaCluster's clustering output and the scan-title mappings produced during dat conversion.
+3. **MaRaCluster** (`RUN_MARACLUSTER_DAT`): Clusters spectra within each (charge, m/z window) partition using the `-D` flag to read pre-existing `.dat` files. Runs in parallel across all windows.
+
+4. **Merge m/z Windows** (`MERGE_MZ_WINDOWS`): Merges cluster assignments from overlapping windows back into a single cluster set per charge. Spectra in overlap zones are deduplicated.
+
+5. **Build Cluster DB** (`BUILD_CLUSTER_DB`): Generates `cluster_metadata.parquet` and `psm_cluster_membership.parquet` using DuckDB-powered joins and aggregations.
 
 ### Incremental Mode
 
 Adds new data to an existing cluster DB without re-clustering everything.
 
-1. **Extract Representatives** (`EXTRACT_REPRESENTATIVES`): Reads cluster metadata and writes one consensus spectrum per existing cluster.
+1. **Extract Representatives** (`EXTRACT_REPS_DAT`): Reads cluster metadata and writes one consensus spectrum per existing cluster to `.dat` format with `rep:{cluster_id}` scan titles.
 
-2. **Convert New Data**: Converts new project PSMs to charge-specific spectrum files.
+2. **Convert New Data** (`PARQUET_TO_DAT`): Converts new project PSMs to charge-specific `.dat` files (same as full mode).
 
-3. **MaRaCluster** (`RUN_MARACLUSTER`): Clusters representatives + new data together. Representatives that land in the same new cluster as new spectra link those spectra to the existing cluster.
+3. **Concatenate** (`CONCAT_DAT_FILES`): Combines representative and new-data `.dat` files per charge, renumbering `scannr` for uniqueness.
 
-4. **Merge Clusters** (`MERGE_INCREMENTAL`): Resolves cluster IDs (representative &rarr; original cluster mapping, multi-representative merges, fresh UUIDs for new-only clusters) and updates the cluster DB.
+4. **Window + Cluster**: Same `SPLIT_MZ_WINDOWS` + `RUN_MARACLUSTER_DAT` + `MERGE_MZ_WINDOWS` path as full mode.
+
+5. **Resolve and Merge** (`RESOLVE_AND_MERGE_INCREMENTAL`): Resolves cluster IDs (representative &rarr; original cluster mapping, multi-representative merges, fresh UUIDs for new-only clusters) and updates the cluster DB.
+
+### Benchmarks
+
+| Dataset | PSMs | Clusters | Reduction | Purity | Pipeline Time | Peak Memory |
+|---------|------|----------|-----------|--------|---------------|-------------|
+| PXD014877 (3.6K) | 3,608 | 3,389 | 6.1% | 0.9996 | ~1 min | < 1 GB |
+| PXD004452 (5.5M) | 5,490,831 | 2,996,391 | 45.4% | 0.9984 | ~40 min | ~5 GB |
+| 7 datasets (11.8M) | 11,797,213 | 6,912,696 | 41.4% | 0.9979 | ~87 min | ~8 GB |
 
 ### Key Features
 
-- **Compact binary format**: Parquet-to-dat conversion produces ~1.3 GB for 12.8M PSMs
+- **Compact binary format**: Parquet-to-dat conversion produces ~100 bytes/spectrum (~1.3 GB for 12.8M PSMs)
 - **Incremental clustering**: Add new datasets without re-clustering existing data
-- **Parallel processing**: Projects and charge partitions are processed in parallel
+- **m/z window parallelism**: Within each charge partition, spectra are split into precursor m/z windows and clustered in parallel, providing near-linear speedup at any scale
+- **DuckDB-powered aggregation**: All cluster stats, purity computation, and I/O use DuckDB for efficient performance from thousands to hundreds of millions of PSMs
+- **Chunked cluster DB builder**: Processes spectrum arrays in 200K-cluster chunks, keeping memory under 5 GB even for 3M+ PSM charges
 - **Partitioned by metadata**: Clustering is performed separately for each species/instrument/charge combination
 - **Consensus spectra**: Multiple strategies (best, bin, most, average) for generating consensus spectra from clusters
 
@@ -101,6 +119,14 @@ nextflow run main.nf \
     --default_species "Homo sapiens" \
     --default_instrument "Q Exactive HF" \
     -profile docker
+
+# With custom m/z windowing for large datasets
+nextflow run main.nf \
+    --parquet_dir /path/to/projects \
+    --default_species "Homo sapiens" \
+    --default_instrument "Q Exactive HF" \
+    --mz_window_size 200 \
+    -profile docker
 ```
 
 ### Incremental Mode
@@ -155,6 +181,17 @@ nextflow run main.nf -profile test,docker
 | `--cluster_threshold` | P-value threshold for MaRaCluster output file naming (e.g., `*_p30.tsv`) | `30` |
 | `--maracluster_verbose` | Enable verbose output from MaRaCluster | `false` |
 
+### Precursor m/z Windowing Parameters
+
+These parameters control parallelization within each charge partition. MaRaCluster uses 20 ppm precursor tolerance internally, so spectra far apart in m/z can never cluster together. Windowing formalizes this to enable parallel processing.
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `--mz_window_size` | Width of each precursor m/z window in Da | `300` |
+| `--mz_window_overlap` | Overlap between adjacent windows in Da (safety margin) | `1.0` |
+
+At small scale (3K PSMs), this produces 1-2 windows with negligible overhead. At large scale (5M+ per charge), 5-10 windows provide near-linear speedup.
+
 ### Consensus Strategy Parameters
 
 | Parameter | Description | Default | Options |
@@ -207,16 +244,20 @@ nextflow run main.nf -profile test,docker
 ```
 results/
 ├── cluster_db/                     # Cluster database (per charge partition)
-│   └── partition__charge{N}/
-│       ├── cluster_metadata.parquet       # One row per cluster (consensus spectrum, purity, member count)
-│       └── psm_cluster_membership.parquet # One row per PSM (USI, cluster_id, sequence, q-value)
-├── maracluster_results/            # MaRaCluster raw output
-│   └── clusters_p30.tsv
+│   ├── charge2/
+│   │   └── cluster_db/
+│   │       ├── cluster_metadata.parquet       # One row per cluster (consensus spectrum, purity, stats)
+│   │       └── psm_cluster_membership.parquet # One row per PSM (USI, cluster_id, scores)
+│   ├── charge3/
+│   │   └── cluster_db/ ...
+│   └── charge{N}/ ...
+├── msp_files/                      # MSP consensus spectral library (optional)
+│   └── *.msp
 └── pipeline_info/                  # Pipeline execution metadata
-    ├── execution_report.html
-    ├── execution_timeline.html
-    ├── execution_trace.txt
-    └── pipeline_dag.html
+    ├── execution_report_*.html
+    ├── execution_timeline_*.html
+    ├── execution_trace_*.txt
+    └── pipeline_dag_*.html
 ```
 
 ### Incremental Mode
@@ -290,10 +331,13 @@ Choose the strategy based on your use case:
 2. **Container platform mismatch (ARM64 vs AMD64)**
    - Solution: Use `-profile docker,arm64` on Apple Silicon, or `-profile docker,emulate_amd64` to emulate AMD64.
 
-3. **Memory errors during clustering**
-   - Solution: Increase `--max_memory` or reduce the number of parallel processes.
+3. **Memory errors during BUILD_CLUSTER_DB**
+   - The cluster DB builder processes spectrum arrays in 200K-cluster chunks to stay within ~5 GB memory. If you see OOM kills (exit 137), check `--max_memory` is at least 8 GB.
 
-4. **Missing QPX parquet files**
+4. **"Error: No such command '/bin/bash'"**
+   - The Docker image must use `CMD` (not `ENTRYPOINT`) so Nextflow can run bash scripts. Rebuild the image if you see this error.
+
+5. **Missing QPX parquet files**
    - Solution: Ensure each project directory contains `.psm.parquet`, `.run.parquet`, and `.sample.parquet` files.
 
 ### Getting Help
