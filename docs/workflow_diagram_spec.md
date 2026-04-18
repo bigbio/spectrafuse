@@ -1,9 +1,10 @@
 # Workflow figure — design spec
 
-Source for regenerating `docs/images/spectrafuse_workflow.svg` (and
-`docs/algorithm.excalidraw` / `algorithm.png`) to reflect the unified
-pipeline. The figure currently in the repo shows the old two-mode design
-(`--mode full` vs `--mode incremental`) and should be redrawn.
+Source for drawing the workflow figure that the README will reference.
+The previous figures (`docs/algorithm.{excalidraw,png,svg}` and
+`docs/images/spectrafuse_workflow.svg`) reflected the old two-mode
+design (`--mode full` vs `--mode incremental`) and have been removed.
+Use this spec to regenerate a figure that matches the unified pipeline.
 
 ## Layout
 

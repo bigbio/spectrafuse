@@ -8,12 +8,14 @@ quantms has reanalyzed an extensive number of datasets with almost 1 billion MS/
 
 ## Workflow Overview
 
-![SpectrafUSE Workflow](docs/images/spectrafuse_workflow.svg)
-
-> See [`docs/formats.md`](docs/formats.md) for the exact structure of every
-> file the pipeline reads and writes — QPX inputs, the `.dat` binary,
-> `.scan_titles.txt`, cluster-DB parquets, MSP, and the pre-existing cluster
-> DB layout expected by `--existing_cluster_db`.
+> A diagram will be added here once the unified workflow figure is drawn.
+> In the meantime, see the ASCII flow below and the design spec at
+> [`docs/workflow_diagram_spec.md`](docs/workflow_diagram_spec.md).
+>
+> File formats (QPX inputs, the `.dat` binary, `.scan_titles.txt`,
+> cluster-DB parquets, MSP, and the pre-existing cluster DB layout
+> expected by `--existing_cluster_db`) are documented in
+> [`docs/formats.md`](docs/formats.md).
 
 
 SpectrafUSE is a single pipeline. New QPX projects are always converted to MaRaCluster's `.dat` binary format (~100 bytes/spectrum), sliced into precursor m/z windows, clustered, and written to a cluster DB plus an MSP spectral library. If `--existing_cluster_db <path>` is supplied, representative spectra from that DB are extracted to `.dat` and clustered alongside the new data — the rest of the pipeline is identical, and the final step merges into the existing DB instead of writing a fresh one.
