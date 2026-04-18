@@ -18,31 +18,6 @@ quantms has reanalyzed an extensive number of datasets with almost 1 billion MS/
 
 SpectrafUSE is a single pipeline. New QPX projects are always converted to MaRaCluster's `.dat` binary format (~100 bytes/spectrum), sliced into precursor m/z windows, clustered, and written to a cluster DB plus an MSP spectral library. If `--existing_cluster_db <path>` is supplied, representative spectra from that DB are extracted to `.dat` and clustered alongside the new data — the rest of the pipeline is identical, and the final step merges into the existing DB instead of writing a fresh one.
 
-```
-  (--existing_cluster_db)      ┌─ EXTRACT_REPS_DAT ─┐
-                               │                    │
-  new QPX projects ─────────── ├─ PARQUET_TO_DAT ───┤
-                               └────────────────────┴──┐
-                                                       ▼
-                                            CONCAT_DAT_FILES   (per species/[instrument]/charge)
-                                                       │
-                                                       ▼
-                                           SPLIT_MZ_WINDOWS    (default: 300 Da, 1 Da overlap)
-                                                       │
-                                                       ▼
-                                         RUN_MARACLUSTER_DAT   (parallel per window)
-                                                       │
-                                                       ▼
-                                           MERGE_MZ_WINDOWS    (reconcile overlap zones)
-                                                       │
-                                                       ▼
-                                 ┌──────────── cluster TSV + scan_titles ──────────┐
-                                 ▼                                                 ▼
-                      BUILD_CLUSTER_DB           ▲       GENERATE_MSP_FORMAT (*.msp.gz per partition)
-                      MERGE_INTO_EXISTING_DB     │
-                                (if --existing_cluster_db)
-```
-
 1. **Parquet → Dat** (`PARQUET_TO_DAT`): Converts PSM parquet files directly to MaRaCluster's binary `.dat` format. Replicates MaRaCluster's internal binning (`bin = floor(mz / 1.000508 + 0.32)`, top-40 peaks). ~100 bytes/spectrum.
 
 2. **Representative Extraction** (`EXTRACT_REPS_DAT`, *only with* `--existing_cluster_db`): Reads each existing `cluster_metadata.parquet`, writes one consensus spectrum per cluster to `.dat` with a `rep:{cluster_id}` scan title — becomes another source for the same clustering pipeline.
