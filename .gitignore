@@ -176,8 +176,8 @@ cython_debug/
 data/
 *.parquet
 
-# CI/CD test data and reports
-test_data/
+# CI/CD reports
+reports/
 reports/
 results/
 results_test/

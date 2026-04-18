@@ -1,241 +1,185 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 750 950" width="750" height="950">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 820" width="880" height="820">
   <defs>
     <style>
-      .station-label {
-        font-family: 'Helvetica Neue', Arial, sans-serif;
-        font-size: 14px;
-        fill: #333;
-        font-weight: 600;
-      }
-      .station-sublabel {
-        font-family: 'Helvetica Neue', Arial, sans-serif;
-        font-size: 11px;
-        fill: #777;
-      }
-      .tool-badge text {
-        font-family: 'Helvetica Neue', Arial, sans-serif;
-        font-size: 8.5px;
-        font-weight: bold;
-        fill: #ffffff;
-      }
-      .legend-text {
-        font-family: 'Helvetica Neue', Arial, sans-serif;
-        font-size: 12px;
-        fill: #555;
-      }
-      .legend-title {
-        font-family: 'Helvetica Neue', Arial, sans-serif;
-        font-size: 13px;
-        font-weight: bold;
-        fill: #333;
-      }
-      .skip-label {
-        font-family: 'Helvetica Neue', Arial, sans-serif;
-        font-size: 10px;
-        font-style: italic;
-        fill: #999;
-      }
-      .mode-label {
-        font-family: 'Helvetica Neue', Arial, sans-serif;
-        font-size: 13px;
-        font-weight: bold;
-      }
-      .mode-sublabel {
-        font-family: 'Helvetica Neue', Arial, sans-serif;
-        font-size: 10px;
-        font-style: italic;
-      }
-      .section-title {
-        font-family: 'Helvetica Neue', Arial, sans-serif;
-        font-size: 11px;
-        font-weight: 600;
-        fill: #999;
-        letter-spacing: 1px;
-      }
+      .label { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 13px; font-weight: 600; fill: #333; }
+      .sublabel { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 10.5px; fill: #888; }
+      .badge { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 8px; font-weight: 700; fill: #fff; letter-spacing: 0.4px; }
+      .legend-text { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 11px; fill: #666; }
+      .legend-title { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; font-weight: 700; fill: #333; }
+      .col-title { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 15px; font-weight: 700; }
+      .col-sub { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 10px; font-style: italic; }
     </style>
   </defs>
 
-  <!-- Background -->
-  <rect width="750" height="950" fill="#ffffff"/>
+  <rect width="880" height="820" fill="#ffffff"/>
 
-  <!-- Title -->
-  <text x="375" y="35" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="20" font-weight="bold" fill="#333">SpectrafUSE Pipeline Workflow</text>
-  <text x="375" y="52" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="11" fill="#888">Spectral clustering pipeline for PRIDE/MSnet proteomics reanalysis</text>
+  <!-- ══════ TITLE ══════ -->
+  <text x="440" y="30" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="18" font-weight="bold" fill="#333">SpectrafUSE Pipeline</text>
+  <text x="440" y="46" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" fill="#aaa">Spectral clustering for PRIDE/MSnet proteomics reanalysis</text>
 
-  <!-- ==================== LEGEND (top right) ==================== -->
-  <g transform="translate(550, 70)">
-    <rect x="-10" y="-15" width="195" height="150" rx="6" fill="#f9f9f9" stroke="#e0e0e0" stroke-width="1"/>
-    <text x="0" y="0" class="legend-title">Legend</text>
-
-    <!-- Filled circle = Process -->
-    <circle cx="10" cy="22" r="6" fill="#666"/>
-    <text x="24" y="26" class="legend-text">Process / module</text>
-
-    <!-- Open circle = Output -->
-    <circle cx="10" cy="44" r="6" fill="none" stroke="#666" stroke-width="2"/>
-    <text x="24" y="48" class="legend-text">Output file</text>
-
-    <!-- Solid line -->
-    <line x1="2" y1="64" x2="18" y2="64" stroke="#666" stroke-width="4"/>
-    <text x="24" y="68" class="legend-text">Main flow</text>
-
-    <!-- Dashed line -->
-    <line x1="2" y1="86" x2="18" y2="86" stroke="#666" stroke-width="3" stroke-dasharray="6,3"/>
-    <text x="24" y="90" class="legend-text">Optional path</text>
-
-    <!-- Mode colors -->
-    <rect x="2" y="105" width="14" height="10" rx="2" fill="#00897B"/>
-    <text x="24" y="114" class="legend-text">Full Mode</text>
-
-    <rect x="2" y="122" width="14" height="10" rx="2" fill="#8E24AA"/>
-    <text x="24" y="131" class="legend-text">Incremental Mode</text>
+  <!-- ══════ LEGEND ══════ -->
+  <g transform="translate(660, 68)">
+    <rect x="-8" y="-14" width="200" height="120" rx="5" fill="#fafafa" stroke="#eee" stroke-width="1"/>
+    <text x="0" y="0" class="legend-title">LEGEND</text>
+    <circle cx="8" cy="18" r="5.5" fill="#666"/>
+    <text x="22" y="22" class="legend-text">Process</text>
+    <circle cx="8" cy="38" r="5" fill="none" stroke="#666" stroke-width="2"/>
+    <text x="22" y="42" class="legend-text">Output</text>
+    <line x1="2" y1="56" x2="14" y2="56" stroke="#666" stroke-width="3.5"/>
+    <text x="22" y="60" class="legend-text">Data flow</text>
+    <line x1="2" y1="74" x2="14" y2="74" stroke="#666" stroke-width="2.5" stroke-dasharray="5,3"/>
+    <text x="22" y="78" class="legend-text">External input</text>
+    <rect x="2" y="88" width="10" height="8" rx="2" fill="#00897B"/>
+    <text x="22" y="96" class="legend-text">Full</text>
+    <rect x="60" y="88" width="10" height="8" rx="2" fill="#7B1FA2"/>
+    <text x="80" y="96" class="legend-text">Incremental</text>
   </g>
 
-  <!-- ==================== SHARED INPUT (Blue) ==================== -->
-  <!-- Input station -->
-  <circle cx="375" cy="100" r="9" fill="#1565C0"/>
-  <text x="375" y="96" text-anchor="end" dx="-18" class="station-label" fill="#1565C0">QPX Parquet Files</text>
-  <text x="375" y="112" text-anchor="end" dx="-18" class="station-sublabel">.psm.parquet + .run.parquet + .sample.parquet</text>
+  <!-- ══════ SHARED INPUT ══════ -->
+  <circle cx="440" cy="90" r="8" fill="#1565C0" stroke="#fff" stroke-width="2"/>
+  <text x="440" y="86" text-anchor="end" dx="-16" class="label" fill="#1565C0">QPX Parquet Files</text>
+  <text x="440" y="100" text-anchor="end" dx="-16" class="sublabel">.psm.parquet  .run.parquet  .sample.parquet</text>
 
-  <!-- Line from input to router -->
-  <line x1="375" y1="109" x2="375" y2="155" stroke="#1565C0" stroke-width="5"/>
+  <line x1="440" y1="98" x2="440" y2="130" stroke="#1565C0" stroke-width="4" stroke-linecap="round"/>
 
-  <!-- Mode Router Diamond -->
-  <polygon points="375,155 405,185 375,215 345,185" fill="none" stroke="#1565C0" stroke-width="2.5"/>
-  <text x="375" y="188" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#1565C0">--mode</text>
+  <!-- Router -->
+  <polygon points="440,130 460,150 440,170 420,150" fill="#fff" stroke="#1565C0" stroke-width="2"/>
+  <text x="440" y="153" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="8" font-weight="bold" fill="#1565C0">--mode</text>
 
-  <!-- ==================== COLUMN HEADERS ==================== -->
-  <!-- Full Mode header -->
-  <text x="200" y="260" text-anchor="middle" class="mode-label" fill="#00897B">Full Mode</text>
-  <text x="200" y="274" text-anchor="middle" class="mode-sublabel" fill="#00897B">(default)</text>
+  <!-- ══════ COLUMN BACKGROUNDS ══════ -->
+  <rect x="30" y="195" width="370" height="420" rx="10" fill="#f7fafa" stroke="#e0eded" stroke-width="1"/>
+  <rect x="480" y="195" width="370" height="420" rx="10" fill="#faf7fc" stroke="#ede0f0" stroke-width="1"/>
 
-  <!-- Incremental header -->
-  <text x="550" y="260" text-anchor="middle" class="mode-label" fill="#8E24AA">Incremental Mode</text>
+  <!-- Column headers -->
+  <text x="215" y="220" text-anchor="middle" class="col-title" fill="#00897B">Full Mode</text>
+  <text x="215" y="234" text-anchor="middle" class="col-sub" fill="#00897B">(default)</text>
 
-  <!-- ==================== ROUTER TO COLUMNS ==================== -->
-  <!-- Router to Full Mode -->
-  <path d="M 360,200 Q 300,235 200,285" fill="none" stroke="#00897B" stroke-width="5"/>
-  <!-- Router to Incremental -->
-  <path d="M 390,200 Q 450,235 550,285" fill="none" stroke="#8E24AA" stroke-width="5"/>
+  <text x="665" y="220" text-anchor="middle" class="col-title" fill="#7B1FA2">Incremental Mode</text>
 
-  <!-- ==================== FULL MODE COLUMN (Teal) ==================== -->
-  <!-- Station 1: PARQUET_TO_DAT -->
-  <line x1="200" y1="295" x2="200" y2="390" stroke="#00897B" stroke-width="5"/>
-  <circle cx="200" cy="305" r="9" fill="#00897B"/>
-  <g class="tool-badge">
-    <rect x="100" y="295" width="85" height="16" rx="3" fill="#00897B"/>
-    <text x="142" y="306" text-anchor="middle">PARQUET_TO_DAT</text>
-  </g>
-  <text x="220" y="302" class="station-label">Parquet to .dat</text>
-  <text x="220" y="316" class="station-sublabel">~100 bytes/spectrum binary format</text>
+  <!-- Router to columns -->
+  <path d="M 430,163 Q 340,185 215,250" fill="none" stroke="#00897B" stroke-width="4" stroke-linecap="round"/>
+  <path d="M 450,163 Q 540,185 665,250" fill="none" stroke="#7B1FA2" stroke-width="4" stroke-linecap="round"/>
 
-  <!-- Station 2: Group by charge -->
-  <circle cx="200" cy="400" r="6" fill="#00897B"/>
-  <text x="220" y="397" class="station-sublabel" fill="#00897B" font-weight="600">Group by charge</text>
+  <!-- ══════════════════════════════════════════════ -->
+  <!--              FULL MODE COLUMN                  -->
+  <!-- ══════════════════════════════════════════════ -->
 
-  <line x1="200" y1="406" x2="200" y2="480" stroke="#00897B" stroke-width="5"/>
+  <!-- Step 1: PARQUET_TO_DAT -->
+  <line x1="215" y1="250" x2="215" y2="290" stroke="#00897B" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="215" cy="290" r="8" fill="#00897B" stroke="#fff" stroke-width="2"/>
+  <rect x="230" y="282" width="82" height="15" rx="3" fill="#00897B"/>
+  <text x="271" y="293" text-anchor="middle" class="badge">PARQUET_TO_DAT</text>
+  <text x="320" y="293" class="label">Parquet to .dat</text>
+  <text x="320" y="306" class="sublabel">~100 bytes/spectrum</text>
 
-  <!-- Station 3: RUN_MARACLUSTER_DAT -->
-  <circle cx="200" cy="490" r="9" fill="#00897B"/>
-  <g class="tool-badge">
-    <rect x="82" y="480" width="105" height="16" rx="3" fill="#00897B"/>
-    <text x="134" y="491" text-anchor="middle">RUN_MARACLUSTER_DAT</text>
-  </g>
-  <text x="220" y="487" class="station-label">MaRaCluster -D</text>
-  <text x="220" y="501" class="station-sublabel">reads .dat files directly</text>
+  <!-- Step 2: Group by charge -->
+  <line x1="215" y1="298" x2="215" y2="345" stroke="#00897B" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="215" cy="345" r="5" fill="#00897B" stroke="#fff" stroke-width="1.5"/>
+  <text x="230" y="349" class="sublabel" fill="#00897B" font-weight="600">Group by charge</text>
 
-  <line x1="200" y1="499" x2="200" y2="580" stroke="#00897B" stroke-width="5"/>
+  <!-- Step 3: RUN_MARACLUSTER_DAT -->
+  <line x1="215" y1="350" x2="215" y2="400" stroke="#00897B" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="215" cy="400" r="8" fill="#00897B" stroke="#fff" stroke-width="2"/>
+  <rect x="60" y="392" width="105" height="15" rx="3" fill="#00897B"/>
+  <text x="112" y="403" text-anchor="middle" class="badge">RUN_MARACLUSTER_DAT</text>
+  <text x="230" y="403" class="label">MaRaCluster -D</text>
+  <text x="230" y="416" class="sublabel">reads .dat files directly</text>
 
-  <!-- Station 4: BUILD_CLUSTER_DB -->
-  <circle cx="200" cy="590" r="9" fill="#00897B"/>
-  <g class="tool-badge">
-    <rect x="92" y="580" width="95" height="16" rx="3" fill="#00897B"/>
-    <text x="139" y="591" text-anchor="middle">BUILD_CLUSTER_DB</text>
-  </g>
-  <text x="220" y="587" class="station-label">Build Cluster DB</text>
-  <text x="220" y="601" class="station-sublabel">metadata + membership parquets</text>
+  <!-- Step 4: BUILD_CLUSTER_DB -->
+  <line x1="215" y1="408" x2="215" y2="480" stroke="#00897B" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="215" cy="480" r="8" fill="#00897B" stroke="#fff" stroke-width="2"/>
+  <rect x="72" y="472" width="93" height="15" rx="3" fill="#00897B"/>
+  <text x="118" y="483" text-anchor="middle" class="badge">BUILD_CLUSTER_DB</text>
+  <text x="230" y="483" class="label">Build Cluster DB</text>
+  <text x="230" y="496" class="sublabel">metadata + membership parquets</text>
 
-  <!-- ==================== INCREMENTAL COLUMN (Purple) ==================== -->
-  <!-- Split into two parallel inputs -->
-  <!-- Left rail: EXTRACT_REPRESENTATIVES -->
-  <path d="M 550,285 L 510,310" stroke="#8E24AA" stroke-width="5" fill="none"/>
-  <line x1="510" y1="310" x2="510" y2="390" stroke="#8E24AA" stroke-width="5"/>
-  <circle cx="510" cy="320" r="9" fill="#8E24AA"/>
-  <g class="tool-badge">
-    <rect x="390" y="310" width="108" height="16" rx="3" fill="#8E24AA"/>
-    <text x="444" y="321" text-anchor="middle">EXTRACT_REPRESENTATIVES</text>
-  </g>
-  <text x="458" y="338" class="station-label" text-anchor="end">Extract Reps</text>
-  <text x="458" y="352" class="station-sublabel" text-anchor="end">one spectrum per existing cluster</text>
+  <!-- Full mode output line -->
+  <line x1="215" y1="488" x2="215" y2="570" stroke="#00897B" stroke-width="4" stroke-linecap="round"/>
 
-  <!-- Right rail: Convert new data -->
-  <path d="M 550,285 L 590,310" stroke="#8E24AA" stroke-width="5" fill="none"/>
-  <line x1="590" y1="310" x2="590" y2="390" stroke="#8E24AA" stroke-width="5"/>
-  <circle cx="590" cy="320" r="9" fill="#8E24AA"/>
-  <g class="tool-badge">
-    <rect x="605" y="310" width="100" height="16" rx="3" fill="#8E24AA"/>
-    <text x="655" y="321" text-anchor="middle">CONVERT_NEW_DATA</text>
-  </g>
-  <text x="605" y="338" class="station-label">New Data</text>
-  <text x="605" y="352" class="station-sublabel">convert new project PSMs</text>
+  <!-- ══════════════════════════════════════════════ -->
+  <!--           INCREMENTAL MODE COLUMN              -->
+  <!-- ══════════════════════════════════════════════ -->
+
+  <!-- Existing Cluster DB (dashed input) -->
+  <circle cx="810" cy="256" r="6" fill="none" stroke="#7B1FA2" stroke-width="2"/>
+  <text x="798" y="248" text-anchor="end" class="sublabel" fill="#7B1FA2">Existing Cluster DB</text>
+  <path d="M 804,260 L 710,290" stroke="#7B1FA2" stroke-width="2.5" stroke-dasharray="5,3" fill="none" stroke-linecap="round"/>
+
+  <!-- Parallel split -->
+  <line x1="665" y1="250" x2="665" y2="265" stroke="#7B1FA2" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- Left rail -->
+  <path d="M 665,265 L 610,290" fill="none" stroke="#7B1FA2" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="610" cy="290" r="8" fill="#7B1FA2" stroke="#fff" stroke-width="2"/>
+  <rect x="490" y="282" width="110" height="15" rx="3" fill="#7B1FA2"/>
+  <text x="545" y="293" text-anchor="middle" class="badge">EXTRACT_REPRESENTATIVES</text>
+  <text x="500" y="310" class="label">Extract Reps</text>
+  <text x="500" y="323" class="sublabel">one spectrum per cluster</text>
+
+  <line x1="610" y1="298" x2="610" y2="370" stroke="#7B1FA2" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- Right rail -->
+  <path d="M 665,265 L 720,290" fill="none" stroke="#7B1FA2" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="720" cy="290" r="8" fill="#7B1FA2" stroke="#fff" stroke-width="2"/>
+  <rect x="735" y="282" width="90" height="15" rx="3" fill="#7B1FA2"/>
+  <text x="780" y="293" text-anchor="middle" class="badge">CONVERT_NEW_DATA</text>
+  <text x="735" y="310" class="label">New Data</text>
+  <text x="735" y="323" class="sublabel">convert new project PSMs</text>
+
+  <line x1="720" y1="298" x2="720" y2="370" stroke="#7B1FA2" stroke-width="4" stroke-linecap="round"/>
 
   <!-- Merge rails -->
-  <path d="M 510,390 L 550,420" stroke="#8E24AA" stroke-width="5" fill="none"/>
-  <path d="M 590,390 L 550,420" stroke="#8E24AA" stroke-width="5" fill="none"/>
+  <path d="M 610,370 L 665,400" fill="none" stroke="#7B1FA2" stroke-width="4" stroke-linecap="round"/>
+  <path d="M 720,370 L 665,400" fill="none" stroke="#7B1FA2" stroke-width="4" stroke-linecap="round"/>
 
-  <line x1="550" y1="420" x2="550" y2="490" stroke="#8E24AA" stroke-width="5"/>
+  <!-- Step 3: RUN_MARACLUSTER -->
+  <circle cx="665" cy="400" r="8" fill="#7B1FA2" stroke="#fff" stroke-width="2"/>
+  <rect x="680" y="392" width="82" height="15" rx="3" fill="#7B1FA2"/>
+  <text x="721" y="403" text-anchor="middle" class="badge">RUN_MARACLUSTER</text>
+  <text x="770" y="403" class="label">MaRaCluster</text>
+  <text x="770" y="416" class="sublabel">reps + new data together</text>
 
-  <!-- Station 3: RUN_MARACLUSTER -->
-  <circle cx="550" cy="490" r="9" fill="#8E24AA"/>
-  <g class="tool-badge">
-    <rect x="455" y="480" width="80" height="16" rx="3" fill="#8E24AA"/>
-    <text x="495" y="491" text-anchor="middle">RUN_MARACLUSTER</text>
-  </g>
-  <text x="570" y="487" class="station-label">MaRaCluster</text>
-  <text x="570" y="501" class="station-sublabel">reps + new data together</text>
+  <!-- Step 4: MERGE_INCREMENTAL -->
+  <line x1="665" y1="408" x2="665" y2="480" stroke="#7B1FA2" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="665" cy="480" r="8" fill="#7B1FA2" stroke="#fff" stroke-width="2"/>
+  <rect x="680" y="472" width="93" height="15" rx="3" fill="#7B1FA2"/>
+  <text x="726" y="483" text-anchor="middle" class="badge">MERGE_INCREMENTAL</text>
+  <text x="780" y="483" class="label">Merge Clusters</text>
+  <text x="780" y="496" class="sublabel">resolve IDs, update membership</text>
 
-  <line x1="550" y1="499" x2="550" y2="580" stroke="#8E24AA" stroke-width="5"/>
+  <!-- Incremental output line -->
+  <line x1="665" y1="488" x2="665" y2="570" stroke="#7B1FA2" stroke-width="4" stroke-linecap="round"/>
 
-  <!-- Station 4: MERGE_INCREMENTAL -->
-  <circle cx="550" cy="590" r="9" fill="#8E24AA"/>
-  <g class="tool-badge">
-    <rect x="442" y="580" width="95" height="16" rx="3" fill="#8E24AA"/>
-    <text x="489" y="591" text-anchor="middle">MERGE_INCREMENTAL</text>
-  </g>
-  <text x="570" y="587" class="station-label">Merge Clusters</text>
-  <text x="570" y="601" class="station-sublabel">resolve IDs, update membership</text>
+  <!-- ══════════════════════════════════════════════ -->
+  <!--                  OUTPUTS                       -->
+  <!-- ══════════════════════════════════════════════ -->
 
-  <!-- ==================== EXISTING CLUSTER DB INPUT (Purple, dashed) ==================== -->
-  <circle cx="680" cy="260" r="8" fill="none" stroke="#8E24AA" stroke-width="2"/>
-  <text x="680" y="255" text-anchor="middle" class="station-sublabel" fill="#8E24AA">Existing</text>
-  <text x="680" y="245" text-anchor="middle" class="station-sublabel" fill="#8E24AA">Cluster DB</text>
-  <line x1="670" y1="268" x2="520" y2="312" stroke="#8E24AA" stroke-width="3" stroke-dasharray="6,3"/>
+  <!-- Output background -->
+  <rect x="130" y="640" width="620" height="130" rx="10" fill="#fff8f0" stroke="#f0e0c8" stroke-width="1"/>
+  <text x="440" y="660" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="600" fill="#bbb" letter-spacing="1.5px">OUTPUTS</text>
 
-  <!-- ==================== SHARED OUTPUTS (Orange) ==================== -->
-  <text x="375" y="680" text-anchor="middle" class="section-title" fill="#999">OUTPUTS</text>
-
-  <!-- Convergence lines to outputs -->
-  <!-- Full Mode to Cluster DB -->
-  <path d="M 200,599 L 200,720 L 310,740" stroke="#00897B" stroke-width="5" fill="none"/>
-  <!-- Incremental to Cluster DB -->
-  <path d="M 550,599 L 550,720 L 440,740" stroke="#8E24AA" stroke-width="5" fill="none"/>
+  <!-- Full to output box -->
+  <path d="M 215,570 L 215,640" fill="none" stroke="#00897B" stroke-width="4" stroke-linecap="round"/>
+  <!-- Incremental to output box -->
+  <path d="M 665,570 L 665,640" fill="none" stroke="#7B1FA2" stroke-width="4" stroke-linecap="round"/>
 
   <!-- Output 1: Cluster DB -->
-  <circle cx="375" cy="750" r="8" fill="none" stroke="#F57C00" stroke-width="2.5"/>
-  <text x="395" y="747" class="station-label" fill="#F57C00">Cluster DB</text>
-  <text x="395" y="763" class="station-sublabel">cluster_metadata.parquet + psm_cluster_membership.parquet</text>
+  <circle cx="320" cy="700" r="7" fill="none" stroke="#F57C00" stroke-width="2.5"/>
+  <text x="336" y="697" class="label" fill="#F57C00">Cluster DB</text>
+  <text x="336" y="711" class="sublabel">cluster_metadata.parquet</text>
+  <text x="336" y="723" class="sublabel">psm_cluster_membership.parquet</text>
 
   <!-- Output 2: MaRaCluster Results -->
-  <!-- Lines from both modes -->
-  <path d="M 200,720 L 310,810" stroke="#00897B" stroke-width="5" fill="none"/>
-  <path d="M 550,720 L 440,810" stroke="#8E24AA" stroke-width="5" fill="none"/>
+  <circle cx="580" cy="700" r="7" fill="none" stroke="#F57C00" stroke-width="2.5"/>
+  <text x="596" y="697" class="label" fill="#F57C00">MaRaCluster Results</text>
+  <text x="596" y="711" class="sublabel">clusters_pN.tsv</text>
 
-  <circle cx="375" cy="820" r="8" fill="none" stroke="#F57C00" stroke-width="2.5"/>
-  <text x="395" y="817" class="station-label" fill="#F57C00">MaRaCluster Results</text>
-  <text x="395" y="833" class="station-sublabel">clusters_pN.tsv</text>
+  <!-- Lines from columns down into output area (straight down, no crossing) -->
+  <!-- small horizontal connector inside box -->
+  <path d="M 215,640 L 215,670 L 313,700" fill="none" stroke="#00897B" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
+  <path d="M 665,640 L 665,670 L 587,700" fill="none" stroke="#7B1FA2" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
 
-  <!-- ==================== FOOTER ==================== -->
-  <text x="375" y="900" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" fill="#bbb">SpectrafUSE v0.0.4 -- Nextflow DSL2 Workflow</text>
-  <text x="375" y="915" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" fill="#ccc">Parquet-to-dat: ~100 bytes/spectrum, 12.8M PSMs = 1.3 GB</text>
+  <!-- Footer -->
+  <text x="440" y="800" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" fill="#ccc">SpectrafUSE v0.0.4 — Nextflow DSL2</text>
 
 </svg>
