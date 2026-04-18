@@ -2,37 +2,29 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     SPECTRAFUSE WORKFLOW
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    Spectral clustering using MaRaCluster.
+    Single spectral-clustering pipeline. New QPX projects are always converted
+    to .dat, windowed, clustered with MaRaCluster, and written to a cluster DB
+    + MSP library.
 
-    Single unified pipeline — both full and incremental modes use the same
-    dat + m/z windowing path:
+    If --existing_cluster_db <path> is provided, representative spectra from
+    that DB are extracted to .dat and concatenated with the new data — the rest
+    of the pipeline is identical. The cluster-DB build step resolves cluster
+    IDs against the reps so pre-existing cluster IDs are preserved, and it
+    merges into the existing membership/metadata parquets.
 
-    Full mode (default):
-      PARQUET_TO_DAT → SPLIT_MZ_WINDOWS → RUN_MARACLUSTER_DAT → MERGE_MZ_WINDOWS → BUILD_CLUSTER_DB
-
-    Incremental mode (--mode incremental --existing_cluster_db <path>):
-      EXTRACT_REPS_DAT ─┐
-      PARQUET_TO_DAT ────┼→ combine .dat → SPLIT_MZ_WINDOWS → RUN_MARACLUSTER_DAT
-                         └→ MERGE_MZ_WINDOWS → RESOLVE_AND_MERGE_INCREMENTAL
-
-    All modes partition by species/instrument/charge.
-    Both modes parallelize by precursor m/z window within each charge.
+    Partitioning:
+      species / charge                          (when params.skip_instrument)
+      species / instrument / charge             (otherwise, default)
 ----------------------------------------------------------------------------------------
 */
 
-// ── Shared modules (used by both modes) ──
 include { PARQUET_TO_DAT }       from '../modules/local/pyspectrafuse/parquet_to_dat/main'
 include { SPLIT_MZ_WINDOWS }     from '../modules/local/pyspectrafuse/split_mz_windows/main'
 include { RUN_MARACLUSTER_DAT }  from '../modules/local/maracluster/run_maracluster_dat/main'
 include { MERGE_MZ_WINDOWS }     from '../modules/local/pyspectrafuse/merge_mz_windows/main'
-
-// ── Full mode only ──
-include { BUILD_CLUSTER_DB }     from '../modules/local/pyspectrafuse/build_cluster_db/main'
+include { BUILD_CLUSTER_DB; MERGE_INTO_EXISTING_DB } from '../modules/local/pyspectrafuse/build_cluster_db/main'
 include { GENERATE_MSP_FORMAT }  from '../modules/local/pyspectrafuse/generate_msp_format/main'
-
-// ── Incremental mode only ──
-include { EXTRACT_REPS_DAT }              from '../modules/local/pyspectrafuse/extract_representatives_dat/main'
-include { RESOLVE_AND_MERGE_INCREMENTAL } from '../modules/local/pyspectrafuse/resolve_and_merge_incremental/main'
+include { EXTRACT_REPS_DAT }     from '../modules/local/pyspectrafuse/extract_representatives_dat/main'
 
 
 workflow SPECTRAFUSE {
@@ -42,45 +34,48 @@ workflow SPECTRAFUSE {
 
     main:
     ch_versions = channel.empty()
+    def has_existing = params.existing_cluster_db != null
+
+    // Default species/instrument come from params; instrument may be elided
+    // when skip_instrument is set.
+    def default_species    = params.default_species    ?: 'Unknown'
+    def default_instrument = params.skip_instrument ? '' : (params.default_instrument ?: 'Unknown')
 
     // ════════════════════════════════════════════════════════════════════
-    // Step 1: Convert new project data to .dat (both modes)
+    // Step 1: new QPX projects → .dat
     // ════════════════════════════════════════════════════════════════════
     ch_projects
-        .map { project_dir ->
-            [ [ id: project_dir.baseName, file_idx: 0 ], project_dir ]
-        }
+        .map { project_dir -> [ [ id: project_dir.baseName, file_idx: 0 ], project_dir ] }
         .set { ch_projects_for_dat }
 
     PARQUET_TO_DAT(ch_projects_for_dat)
     ch_versions = ch_versions.mix(PARQUET_TO_DAT.out.versions)
 
     // ════════════════════════════════════════════════════════════════════
-    // Step 1b (incremental only): Extract representatives from existing DB
+    // Step 1b (optional): existing cluster DB → representative .dat
     // ════════════════════════════════════════════════════════════════════
-    if (params.mode == 'incremental') {
+    if (has_existing) {
         ch_existing_db = channel.fromPath("${params.existing_cluster_db}/**/cluster_metadata.parquet")
             .map { meta_file ->
                 def membership = meta_file.parent.resolve('psm_cluster_membership.parquet')
-                def charge = meta_file.parent.parent.name
-                def instrument = meta_file.parent.parent.parent.name
-                def species = meta_file.parent.parent.parent.parent.name
-                def id = "${species}__${instrument}__${charge}"
+                def charge     = meta_file.parent.parent.name
+                def inst_level = params.skip_instrument ? '' : meta_file.parent.parent.parent.name
+                def spec_level = params.skip_instrument
+                    ? meta_file.parent.parent.parent.name
+                    : meta_file.parent.parent.parent.parent.name
+                def id = "${spec_level}__${inst_level}__${charge}"
                     .replaceAll(/[\\/]/, '_').replaceAll(/\s+/, '_')
-                def meta = [ id: id, species: species, instrument: instrument, charge: charge ]
+                def meta = [ id: id, species: spec_level, instrument: inst_level, charge: charge ]
                 return [meta, meta_file, membership]
             }
 
-        EXTRACT_REPS_DAT(
-            ch_existing_db.map { meta, meta_file, _mem -> [meta, meta_file] }
-        )
+        EXTRACT_REPS_DAT(ch_existing_db.map { meta, meta_file, _mem -> [meta, meta_file] })
         ch_versions = ch_versions.mix(EXTRACT_REPS_DAT.out.versions)
     }
 
     // ════════════════════════════════════════════════════════════════════
-    // Step 2: Pair dat + scaninfo + titles by filename prefix, group by charge
+    // Step 2: key new .dat outputs by charge prefix
     // ════════════════════════════════════════════════════════════════════
-    // Helper: key .dat files by charge prefix
     PARQUET_TO_DAT.out.dat_files
         .transpose()
         .map { meta, dat_file ->
@@ -114,7 +109,6 @@ workflow SPECTRAFUSE {
         .filter { it != null }
         .set { ch_titles_keyed }
 
-    // Join new data by filename prefix
     ch_dat_keyed
         .join(ch_scaninfo_keyed)
         .join(ch_titles_keyed)
@@ -123,15 +117,15 @@ workflow SPECTRAFUSE {
             def charge = "charge${charge_match[0][1]}"
             def meta = [
                 id: "partition__${charge}",
-                species: params.default_species ?: 'Unknown',
-                instrument: params.default_instrument ?: 'Unknown',
+                species: default_species,
+                instrument: default_instrument,
                 charge: charge
             ]
             return [meta, dat_file, scaninfo_file, titles_file]
         }
         .set { ch_new_data_split_input }
 
-    // Group scan_titles by charge for downstream BUILD_CLUSTER_DB / RESOLVE_AND_MERGE
+    // Scan_titles grouped by charge — reused downstream by BUILD_CLUSTER_DB.
     ch_titles_keyed
         .map { key, titles_file ->
             def charge_match = (key =~ /_charge(\d+)$/)
@@ -142,47 +136,31 @@ workflow SPECTRAFUSE {
         .set { ch_new_grouped_titles }
 
     // ════════════════════════════════════════════════════════════════════
-    // Step 2b (incremental): Combine representative .dat with new data .dat
-    //   per charge, then feed into the shared windowing pipeline
+    // Step 2b (optional): combine rep .dat + new-data .dat per charge
     // ════════════════════════════════════════════════════════════════════
-    if (params.mode == 'incremental') {
-        // Key representative outputs by charge
+    if (has_existing) {
         EXTRACT_REPS_DAT.out.dat_files
             .transpose()
-            .map { meta, dat_file ->
-                if (dat_file.size() == 0) return null
-                return [meta.charge, dat_file]
-            }
+            .map { meta, dat_file -> dat_file.size() == 0 ? null : [meta.charge, dat_file] }
             .filter { it != null }
             .set { ch_rep_dat_by_charge }
 
         EXTRACT_REPS_DAT.out.scaninfo_files
             .transpose()
-            .map { meta, si_file ->
-                if (si_file.size() == 0) return null
-                return [meta.charge, si_file]
-            }
+            .map { meta, si_file -> si_file.size() == 0 ? null : [meta.charge, si_file] }
             .filter { it != null }
             .set { ch_rep_scaninfo_by_charge }
 
         EXTRACT_REPS_DAT.out.scan_titles
             .transpose()
-            .map { meta, titles_file ->
-                if (titles_file.size() == 0) return null
-                return [meta.charge, titles_file]
-            }
+            .map { meta, titles_file -> titles_file.size() == 0 ? null : [meta.charge, titles_file] }
             .filter { it != null }
             .set { ch_rep_titles_by_charge }
 
-        // Key new data by charge too
         ch_new_data_split_input
-            .map { meta, dat, scaninfo, titles ->
-                [meta.charge, dat, scaninfo, titles]
-            }
+            .map { meta, dat, scaninfo, titles -> [meta.charge, dat, scaninfo, titles] }
             .set { ch_new_by_charge }
 
-        // Combine: for each charge, concatenate .dat files from reps + new data
-        // using a Python script that handles scannr renumbering
         ch_new_by_charge
             .map { charge, dat, scaninfo, titles -> [charge, [dat], [scaninfo], [titles]] }
             .join(ch_rep_dat_by_charge.groupTuple())
@@ -191,26 +169,20 @@ workflow SPECTRAFUSE {
             .map { charge, new_dats, new_scaninfos, new_titles, rep_dats, rep_scaninfos, rep_titles ->
                 def meta = [
                     id: "partition__${charge}",
-                    species: params.default_species ?: 'Unknown',
-                    instrument: params.default_instrument ?: 'Unknown',
+                    species: default_species,
+                    instrument: default_instrument,
                     charge: charge
                 ]
-                // Concatenate file lists: reps first, then new data
-                def all_dats = (rep_dats + new_dats).flatten()
-                def all_scaninfos = (rep_scaninfos + new_scaninfos).flatten()
-                def all_titles = (rep_titles + new_titles).flatten()
+                def all_dats       = (rep_dats       + new_dats).flatten()
+                def all_scaninfos  = (rep_scaninfos  + new_scaninfos).flatten()
+                def all_titles     = (rep_titles     + new_titles).flatten()
                 return [meta, all_dats, all_scaninfos, all_titles]
             }
             .set { ch_combined_split_input }
 
-        // Also collect rep scan_titles by charge for RESOLVE_AND_MERGE
-        ch_rep_titles_by_charge
-            .groupTuple()
-            .set { ch_rep_grouped_titles }
-
-        // Merge new + rep scan_titles for resolve step
+        // Merge rep + new scan_titles per charge for downstream BUILD_CLUSTER_DB.
         ch_new_grouped_titles
-            .join(ch_rep_grouped_titles)
+            .join(ch_rep_titles_by_charge.groupTuple())
             .map { charge, new_titles, rep_titles ->
                 [charge, (rep_titles + new_titles).flatten()]
             }
@@ -223,32 +195,26 @@ workflow SPECTRAFUSE {
     }
 
     // ════════════════════════════════════════════════════════════════════
-    // Step 3: Split into m/z windows (shared path)
+    // Step 3: concatenate per-charge .dat when multiple sources exist
     // ════════════════════════════════════════════════════════════════════
-    // SPLIT_MZ_WINDOWS expects a single .dat per charge, but incremental
-    // mode may have multiple .dat files. Concatenate them first.
     ch_split_input
         .branch {
-            single: it[1] instanceof Path  // single file, pass directly
-            multi: true                     // list of files, need concat
+            single: it[1] instanceof Path
+            multi:  true
         }
         .set { ch_split_branched }
 
-    // For single-file case, pass through as-is
-    ch_split_branched.single
-        .set { ch_single_for_split }
+    ch_split_branched.single.set { ch_single_for_split }
 
-    // For multi-file case, concatenate .dat files per charge
     ch_split_branched.multi
         .map { meta, dats, scaninfos, titles ->
-            [meta, dats instanceof List ? dats : [dats],
-                   scaninfos instanceof List ? scaninfos : [scaninfos],
-                   titles instanceof List ? titles : [titles]]
+            [meta,
+             dats       instanceof List ? dats       : [dats],
+             scaninfos  instanceof List ? scaninfos  : [scaninfos],
+             titles     instanceof List ? titles     : [titles]]
         }
         .set { ch_multi_for_concat }
 
-    // Use a simple process-less approach: cat binary files together
-    // and merge scan_titles, adjusting scannr
     CONCAT_DAT_FILES(ch_multi_for_concat)
     ch_versions = ch_versions.mix(CONCAT_DAT_FILES.out.versions)
 
@@ -256,11 +222,14 @@ workflow SPECTRAFUSE {
         .mix(CONCAT_DAT_FILES.out.combined)
         .set { ch_ready_for_split }
 
+    // ════════════════════════════════════════════════════════════════════
+    // Step 4: m/z window slicing
+    // ════════════════════════════════════════════════════════════════════
     SPLIT_MZ_WINDOWS(ch_ready_for_split)
     ch_versions = ch_versions.mix(SPLIT_MZ_WINDOWS.out.versions)
 
     // ════════════════════════════════════════════════════════════════════
-    // Step 4: Run MaRaCluster per window (shared path)
+    // Step 5: MaRaCluster per window
     // ════════════════════════════════════════════════════════════════════
     SPLIT_MZ_WINDOWS.out.window_dat_files
         .transpose()
@@ -302,13 +271,10 @@ workflow SPECTRAFUSE {
     ch_versions = ch_versions.mix(RUN_MARACLUSTER_DAT.out.versions)
 
     // ════════════════════════════════════════════════════════════════════
-    // Step 5: Merge m/z windows back per charge (shared path)
+    // Step 6: merge m/z windows per charge
     // ════════════════════════════════════════════════════════════════════
     RUN_MARACLUSTER_DAT.out.maracluster_results
-        .map { meta, tsv ->
-            def charge = meta.charge
-            return [charge, tsv]
-        }
+        .map { meta, tsv -> [meta.charge, tsv] }
         .groupTuple()
         .join(
             SPLIT_MZ_WINDOWS.out.window_manifest
@@ -317,8 +283,8 @@ workflow SPECTRAFUSE {
         .map { charge, tsvs, manifest ->
             def meta = [
                 id: "partition__${charge}",
-                species: params.default_species ?: 'Unknown',
-                instrument: params.default_instrument ?: 'Unknown',
+                species: default_species,
+                instrument: default_instrument,
                 charge: charge
             ]
             return [meta, tsvs, manifest]
@@ -329,70 +295,44 @@ workflow SPECTRAFUSE {
     ch_versions = ch_versions.mix(MERGE_MZ_WINDOWS.out.versions)
 
     // ════════════════════════════════════════════════════════════════════
-    // Step 6: Build output (diverges by mode)
+    // Step 7: build cluster DB (fresh, or merging into existing)
     // ════════════════════════════════════════════════════════════════════
-    if (params.mode == 'incremental') {
-        // ── Incremental: resolve cluster IDs and merge into existing DB ──
-        MERGE_MZ_WINDOWS.out.merged_clusters
-            .map { meta, tsv -> [meta.charge, meta, tsv] }
-            .join(ch_all_grouped_titles)
-            .map { _charge, meta, tsv, titles ->
-                [meta, tsv, titles]
-            }
-            .set { ch_resolve_input }
+    MERGE_MZ_WINDOWS.out.merged_clusters
+        .map { meta, tsv -> [meta.charge, meta, tsv] }
+        .join(ch_all_grouped_titles)
+        .map { _charge, meta, tsv, titles -> [meta, tsv, titles] }
+        .set { ch_db_input }
 
-        // Join with existing DB metadata + membership
-        ch_resolve_input
+    ch_project_dirs = ch_projects.collect()
+
+    if (has_existing) {
+        ch_db_input
             .map { meta, tsv, titles -> [meta.charge, meta, tsv, titles] }
-            .join(
-                ch_existing_db.map { meta, mf, mem ->
-                    [meta.charge, mf, mem]
-                }
-            )
-            .map { charge, meta, tsv, titles, mf, mem ->
-                [meta, tsv, titles, mf, mem]
-            }
-            .set { ch_resolve_with_db }
+            .join(ch_existing_db.map { meta, mf, mem -> [meta.charge, mf, mem] })
+            .map { _charge, meta, tsv, titles, mf, mem -> [meta, tsv, titles, mf, mem] }
+            .set { ch_build_input_existing }
 
-        ch_project_dirs = ch_projects.collect()
-
-        RESOLVE_AND_MERGE_INCREMENTAL(
-            ch_resolve_with_db.combine(ch_project_dirs.map { dirs -> [dirs] })
+        MERGE_INTO_EXISTING_DB(
+            ch_build_input_existing.combine(ch_project_dirs.map { dirs -> [dirs] })
         )
-        ch_versions = ch_versions.mix(RESOLVE_AND_MERGE_INCREMENTAL.out.versions)
-
-        ch_cluster_parquet = RESOLVE_AND_MERGE_INCREMENTAL.out.cluster_parquet_files
-        ch_msp = channel.empty()
+        ch_cluster_meta = MERGE_INTO_EXISTING_DB.out.cluster_metadata
+        ch_versions     = ch_versions.mix(MERGE_INTO_EXISTING_DB.out.versions)
     } else {
-        // ── Full: build cluster DB from scratch ──
-        MERGE_MZ_WINDOWS.out.merged_clusters
-            .map { meta, tsv -> [meta.charge, meta, tsv] }
-            .join(ch_all_grouped_titles)
-            .map { _charge, meta, tsv, titles ->
-                [meta, tsv, titles]
-            }
-            .set { ch_db_input }
-
-        ch_project_dirs = ch_projects.collect()
-
-        BUILD_CLUSTER_DB(
-            ch_db_input.combine(ch_project_dirs.map { dirs -> [dirs] })
-        )
-        ch_versions = ch_versions.mix(BUILD_CLUSTER_DB.out.versions)
-
-        // Generate MSP consensus spectral library
-        // ch_db_input already has [meta, tsv, titles] — reuse it for MSP
-        GENERATE_MSP_FORMAT(ch_db_input, ch_parquet_dir)
-        ch_versions = ch_versions.mix(GENERATE_MSP_FORMAT.out.versions)
-
-        ch_cluster_parquet = BUILD_CLUSTER_DB.out.cluster_metadata
-        ch_msp = GENERATE_MSP_FORMAT.out.msp_files
+        BUILD_CLUSTER_DB(ch_db_input.combine(ch_project_dirs.map { dirs -> [dirs] }))
+        ch_cluster_meta = BUILD_CLUSTER_DB.out.cluster_metadata
+        ch_versions     = ch_versions.mix(BUILD_CLUSTER_DB.out.versions)
     }
+
+    // ════════════════════════════════════════════════════════════════════
+    // Step 8: always generate MSP spectral library
+    // ════════════════════════════════════════════════════════════════════
+    GENERATE_MSP_FORMAT(ch_db_input, ch_parquet_dir)
+    ch_versions = ch_versions.mix(GENERATE_MSP_FORMAT.out.versions)
 
     emit:
     maracluster_results = MERGE_MZ_WINDOWS.out.merged_clusters
-    cluster_parquet     = ch_cluster_parquet
-    msp_files           = ch_msp
+    cluster_parquet     = ch_cluster_meta
+    msp_files           = GENERATE_MSP_FORMAT.out.msp_files
     versions            = ch_versions
 }
 
@@ -400,9 +340,10 @@ workflow SPECTRAFUSE {
 /*
  * CONCAT_DAT_FILES — Concatenate multiple .dat files per charge into one.
  *
- * Needed for incremental mode where representative .dat files and new-data
- * .dat files must be combined before windowing. Renumbers scannr to be
- * globally unique across all input files.
+ * Invoked when a partition has more than one .dat source — either multiple
+ * new projects for the same species/instrument/charge, or representative
+ * .dat from --existing_cluster_db combined with new-data .dat. Renumbers
+ * scannr to be globally unique across the concatenated file.
  */
 process CONCAT_DAT_FILES {
     label 'process_low'
@@ -433,12 +374,9 @@ SPECTRUM_STRUCT = struct.Struct('<IIIff40h')
 SCANINFO_STRUCT = struct.Struct('<IIff')
 
 dat_files = sorted(Path('.').glob('*.dat'))
-# Separate .dat from .scan_info.dat
 data_dats = [f for f in dat_files if '.scan_info.' not in f.name]
-scaninfo_dats = [f for f in dat_files if '.scan_info.' in f.name]
 titles_files = sorted(Path('.').glob('*.scan_titles.txt'))
 
-# Output stem from meta.id
 stem = '${meta.id}'.replace('partition__', '')
 
 out_dat = open(f'combined/{stem}.dat', 'wb')
@@ -448,8 +386,7 @@ out_titles = open(f'combined/{stem}.scan_titles.txt', 'w')
 global_scannr = 0
 
 for dat_path in data_dats:
-    # Find matching scaninfo and titles by stem
-    dat_stem = dat_path.stem  # e.g., "reps_cluster_metadata_charge2" or "PXD014877.psm_charge2"
+    dat_stem = dat_path.stem
     si_path = dat_path.parent / f"{dat_stem}.scan_info.dat"
     titles_path = dat_path.parent / f"{dat_stem}.scan_titles.txt"
 
@@ -457,20 +394,17 @@ for dat_path in data_dats:
         print(f"WARNING: Missing scaninfo or titles for {dat_path.name}, skipping")
         continue
 
-    # Read and renumber .dat structs
     dat_data = dat_path.read_bytes()
     si_data = si_path.read_bytes()
     n_spectra = len(dat_data) // SPECTRUM_SIZE
 
     for i in range(n_spectra):
-        # Unpack spectrum, renumber scannr
         offset = i * SPECTRUM_SIZE
         fields = list(SPECTRUM_STRUCT.unpack_from(dat_data, offset))
-        fields[0] = 0  # file_idx = 0 (single combined file)
+        fields[0] = 0
         fields[1] = global_scannr
         out_dat.write(SPECTRUM_STRUCT.pack(*fields))
 
-        # Unpack scaninfo, renumber
         si_offset = i * SCANINFO_SIZE
         if si_offset + SCANINFO_SIZE <= len(si_data):
             si_fields = list(SCANINFO_STRUCT.unpack_from(si_data, si_offset))
@@ -480,7 +414,6 @@ for dat_path in data_dats:
 
         global_scannr += 1
 
-    # Read and renumber titles
     with open(titles_path) as f:
         local_scannr = 0
         for line in f:

@@ -10,39 +10,65 @@ quantms has reanalyzed an extensive number of datasets with almost 1 billion MS/
 
 ![SpectrafUSE Workflow](docs/images/spectrafuse_workflow.svg)
 
-The pipeline converts QPX parquet files directly into MaRaCluster's internal `.dat` binary format (~100 bytes/spectrum), making it feasible to cluster datasets with millions of PSMs on standard hardware. DuckDB powers all aggregation and I/O operations for efficient performance at any scale.
+> See [`docs/formats.md`](docs/formats.md) for the exact structure of every
+> file the pipeline reads and writes — QPX inputs, the `.dat` binary,
+> `.scan_titles.txt`, cluster-DB parquets, MSP, and the pre-existing cluster
+> DB layout expected by `--existing_cluster_db`.
 
-The pipeline supports two modes:
 
-### Full Mode (default)
+SpectrafUSE is a single pipeline. New QPX projects are always converted to MaRaCluster's `.dat` binary format (~100 bytes/spectrum), sliced into precursor m/z windows, clustered, and written to a cluster DB plus an MSP spectral library. If `--existing_cluster_db <path>` is supplied, representative spectra from that DB are extracted to `.dat` and clustered alongside the new data — the rest of the pipeline is identical, and the final step merges into the existing DB instead of writing a fresh one.
 
 ```
-Parquet → .dat → Split m/z Windows → MaRaCluster (per window) → Merge Windows → Cluster DB
+  (--existing_cluster_db)      ┌─ EXTRACT_REPS_DAT ─┐
+                               │                    │
+  new QPX projects ─────────── ├─ PARQUET_TO_DAT ───┤
+                               └────────────────────┴──┐
+                                                       ▼
+                                            CONCAT_DAT_FILES   (per species/[instrument]/charge)
+                                                       │
+                                                       ▼
+                                           SPLIT_MZ_WINDOWS    (default: 300 Da, 1 Da overlap)
+                                                       │
+                                                       ▼
+                                         RUN_MARACLUSTER_DAT   (parallel per window)
+                                                       │
+                                                       ▼
+                                           MERGE_MZ_WINDOWS    (reconcile overlap zones)
+                                                       │
+                                                       ▼
+                                 ┌──────────── cluster TSV + scan_titles ──────────┐
+                                 ▼                                                 ▼
+                      BUILD_CLUSTER_DB           ▲       GENERATE_MSP_FORMAT (*.msp.gz per partition)
+                      MERGE_INTO_EXISTING_DB     │
+                                (if --existing_cluster_db)
 ```
 
-1. **Parquet to Dat** (`PARQUET_TO_DAT`): Converts PSM parquet files directly to MaRaCluster's binary `.dat` format, filtering by charge state. Replicates MaRaCluster's internal binning algorithm (`bin = floor(mz / 1.000508 + 0.32)`, top-40 peaks).
+1. **Parquet → Dat** (`PARQUET_TO_DAT`): Converts PSM parquet files directly to MaRaCluster's binary `.dat` format. Replicates MaRaCluster's internal binning (`bin = floor(mz / 1.000508 + 0.32)`, top-40 peaks). ~100 bytes/spectrum.
 
-2. **Split m/z Windows** (`SPLIT_MZ_WINDOWS`): Splits each charge partition's `.dat` files into overlapping precursor m/z windows (default: 300 Da wide, 1 Da overlap). This enables parallel MaRaCluster execution — spectra far apart in m/z can never cluster together (MaRaCluster uses 20 ppm precursor tolerance), so windowing formalizes this for Nextflow parallelism.
+2. **Representative Extraction** (`EXTRACT_REPS_DAT`, *only with* `--existing_cluster_db`): Reads each existing `cluster_metadata.parquet`, writes one consensus spectrum per cluster to `.dat` with a `rep:{cluster_id}` scan title — becomes another source for the same clustering pipeline.
 
-3. **MaRaCluster** (`RUN_MARACLUSTER_DAT`): Clusters spectra within each (charge, m/z window) partition using the `-D` flag to read pre-existing `.dat` files. Runs in parallel across all windows.
+3. **Concatenate** (`CONCAT_DAT_FILES`): Per `species/[instrument]/charge` partition, concatenates all `.dat` sources (new projects + optional reps), renumbering `scannr` for global uniqueness.
 
-4. **Merge m/z Windows** (`MERGE_MZ_WINDOWS`): Merges cluster assignments from overlapping windows back into a single cluster set per charge. Spectra in overlap zones are deduplicated.
+4. **Split m/z Windows** (`SPLIT_MZ_WINDOWS`): Splits each partition into overlapping precursor m/z windows. MaRaCluster's 20 ppm precursor tolerance means spectra far apart in m/z can never cluster together; windowing formalizes this for Nextflow parallelism.
 
-5. **Build Cluster DB** (`BUILD_CLUSTER_DB`): Generates `cluster_metadata.parquet` and `psm_cluster_membership.parquet` using DuckDB-powered joins and aggregations.
+5. **MaRaCluster** (`RUN_MARACLUSTER_DAT`): Clusters spectra within each `(partition, window)` via MaRaCluster's `-D` flag (direct `.dat` read). Runs in parallel.
 
-### Incremental Mode
+6. **Merge m/z Windows** (`MERGE_MZ_WINDOWS`): Reconciles cluster assignments across overlap zones — deterministic lowest-window-index wins, safe because the 1 Da overlap is far wider than the 20 ppm clustering tolerance.
 
-Adds new data to an existing cluster DB without re-clustering everything.
+7. **Cluster DB build** (`BUILD_CLUSTER_DB` or `MERGE_INTO_EXISTING_DB`): Generates `cluster_metadata.parquet` + `psm_cluster_membership.parquet` via DuckDB joins over scan_titles. When an existing DB is supplied, pre-existing `cluster_id`s are reused wherever a rep lands in a new cluster, and new PSMs are appended (dedup by USI). Both branches emit provenance columns (see below).
 
-1. **Extract Representatives** (`EXTRACT_REPS_DAT`): Reads cluster metadata and writes one consensus spectrum per existing cluster to `.dat` format with `rep:{cluster_id}` scan titles.
+8. **MSP library** (`GENERATE_MSP_FORMAT`): Writes the consensus spectral library as `*.msp.gz`, one file per partition.
 
-2. **Convert New Data** (`PARQUET_TO_DAT`): Converts new project PSMs to charge-specific `.dat` files (same as full mode).
+### Partitioning
 
-3. **Concatenate** (`CONCAT_DAT_FILES`): Combines representative and new-data `.dat` files per charge, renumbering `scannr` for uniqueness.
+Clustering runs per `species/instrument/charge`, or per `species/charge` when `--skip_instrument` is set (useful when several instrument models produce interoperable spectra). Cluster DB and MSP publish paths mirror the partition key.
 
-4. **Window + Cluster**: Same `SPLIT_MZ_WINDOWS` + `RUN_MARACLUSTER_DAT` + `MERGE_MZ_WINDOWS` path as full mode.
+### Provenance
 
-5. **Resolve and Merge** (`RESOLVE_AND_MERGE_INCREMENTAL`): Resolves cluster IDs (representative &rarr; original cluster mapping, multi-representative merges, fresh UUIDs for new-only clusters) and updates the cluster DB.
+`cluster_metadata.parquet` carries two columns for multi-round traceability:
+
+- `is_reused_cluster` (bool): `True` when this `cluster_id` was inherited from `--existing_cluster_db` via a representative match.
+- `source_datasets` (list<string>): distinct `project_accession` values that contribute PSMs to this cluster, accumulated across rounds.
 
 ### Benchmarks
 
@@ -111,7 +137,7 @@ cd spectrafuse
 
 ## Usage
 
-### Full Mode (default)
+### Fresh run
 
 ```bash
 nextflow run main.nf \
@@ -119,23 +145,26 @@ nextflow run main.nf \
     --default_species "Homo sapiens" \
     --default_instrument "Q Exactive HF" \
     -profile docker
-
-# With custom m/z windowing for large datasets
-nextflow run main.nf \
-    --parquet_dir /path/to/projects \
-    --default_species "Homo sapiens" \
-    --default_instrument "Q Exactive HF" \
-    --mz_window_size 200 \
-    -profile docker
 ```
 
-### Incremental Mode
+### Merge into an existing cluster DB
 
 ```bash
 nextflow run main.nf \
     --parquet_dir /path/to/new_projects \
-    --mode incremental \
     --existing_cluster_db /path/to/cluster_db \
+    --default_species "Homo sapiens" \
+    --default_instrument "Q Exactive HF" \
+    -profile docker
+```
+
+### Cluster across instruments (drop instrument partitioning)
+
+```bash
+nextflow run main.nf \
+    --parquet_dir /path/to/projects \
+    --default_species "Homo sapiens" \
+    --skip_instrument \
     -profile docker
 ```
 
@@ -162,15 +191,14 @@ nextflow run main.nf -profile test,docker
 |-----------|-------------|---------|
 | `--parquet_dir` | Directory containing project subdirectories with QPX parquet files | `/data/projects` |
 
-### Pipeline Mode Parameters
+### Pipeline Parameters
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `--mode` | Pipeline mode: `full` or `incremental` | `full` |
-| `--existing_cluster_db` | Path to existing cluster DB (required for incremental mode) | `null` |
+| `--existing_cluster_db` | Optional path to a prior cluster DB. When set, its representative spectra feed the same pipeline and the result merges into that DB. | `null` |
 | `--default_species` | Species label for cluster DB metadata | `null` |
-| `--default_instrument` | Instrument label for cluster DB metadata | `null` |
-| `--skip_instrument` | Cluster all instruments together (no instrument partitioning) | `false` |
+| `--default_instrument` | Instrument label (ignored when `--skip_instrument` is set) | `null` |
+| `--skip_instrument` | Drop the instrument level from partitioning and output paths (use when instruments cluster interchangeably) | `false` |
 
 ### MaRaCluster Parameters
 
@@ -239,30 +267,22 @@ At small scale (3K PSMs), this produces 1-2 windows with negligible overhead. At
 
 ## Output Structure
 
-### Full Mode
-
 ```
 results/
-├── cluster_db/                     # Cluster database (per charge partition)
-│   ├── charge2/
-│   │   └── cluster_db/
-│   │       ├── cluster_metadata.parquet       # One row per cluster (consensus spectrum, purity, stats)
-│   │       └── psm_cluster_membership.parquet # One row per PSM (USI, cluster_id, scores)
-│   ├── charge3/
-│   │   └── cluster_db/ ...
-│   └── charge{N}/ ...
-├── msp_files/                      # MSP consensus spectral library (optional)
-│   └── *.msp
-└── pipeline_info/                  # Pipeline execution metadata
+├── cluster_db/
+│   └── {species}/{instrument}/{charge}/          # {species}/{charge} when --skip_instrument
+│       ├── cluster_metadata.parquet              # one row per cluster (consensus, stats, provenance)
+│       └── psm_cluster_membership.parquet        # one row per PSM (USI, cluster_id, scores)
+├── msp_files/
+│   └── {species}/{instrument}/{charge}/*.msp.gz  # consensus spectral library per partition
+└── pipeline_info/
     ├── execution_report_*.html
     ├── execution_timeline_*.html
     ├── execution_trace_*.txt
     └── pipeline_dag_*.html
 ```
 
-### Incremental Mode
-
-Same structure as full mode, with updated cluster metadata and membership parquets that include both existing and new PSMs.
+When `--existing_cluster_db` is supplied, `cluster_metadata.parquet` carries over pre-existing `cluster_id` values where a rep matched, and `psm_cluster_membership.parquet` is the merged membership (dedup by USI). Use the `is_reused_cluster` and `source_datasets` columns to separate new-this-round clusters from reused ones and to trace which projects contribute to each cluster.
 
 ## Profiles
 
@@ -299,9 +319,25 @@ nextflow run main.nf -profile docker,arm64
 # Singularity on HPC cluster
 nextflow run main.nf -profile singularity
 
+# EMBL-EBI Codon SLURM cluster (Singularity + SLURM executor + shared cacheDir)
+nextflow run main.nf -profile codon_slurm
+
 # Test run with Docker
 nextflow run main.nf -profile test,docker
 ```
+
+### EBI Codon SLURM
+
+The `codon_slurm` profile (`conf/codon_slurm.config`) mirrors the
+[`pride_codon_slurm`](https://github.com/bigbio/quantms/blob/master/conf/pride_codon_slurm.config)
+profile from quantms: SLURM executor with a `queueSize` of 2000, a shared
+Singularity `cacheDir` at `/hps/nobackup/juan/pride/reanalysis/singularity/`,
+the standard PRIDE reanalysis bind mount, generous retries for shared-FS
+latency, and per-process resource scaling. To pre-populate the cache, build
+the SIF locally with `pyspectrafuse-lib/scripts/build_singularity.sh` using
+`MODE=remote OUT_DIR=/hps/nobackup/juan/pride/reanalysis/singularity/` — the
+output filename (`ghcr.io-bigbio-pyspectrafuse-<version>.sif`) is the name
+Nextflow expects.
 
 ## Consensus Spectrum Strategies
 

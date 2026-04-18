@@ -55,10 +55,6 @@ workflow {
         error "Please provide a folder containing the files that will be clustered (--parquet_dir)"
     }
 
-    if (params.mode == 'incremental' && !params.existing_cluster_db) {
-        error "Incremental mode requires --existing_cluster_db pointing to the existing cluster DB directory"
-    }
-
     // Create channels for all items to be clustered
     // Exclude output directories (msp/, cluster_db/) that may exist inside project dirs
     ch_projects = channel.fromPath("${params.parquet_dir}/*", type: 'dir')
