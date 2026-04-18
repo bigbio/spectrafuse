@@ -8,42 +8,15 @@ quantms has reanalyzed an extensive number of datasets with almost 1 billion MS/
 
 ## Workflow Overview
 
-> A diagram will be added here once the unified workflow figure is drawn.
-> In the meantime, see the ASCII flow below and the design spec at
-> [`docs/workflow_diagram_spec.md`](docs/workflow_diagram_spec.md).
->
-> File formats (QPX inputs, the `.dat` binary, `.scan_titles.txt`,
-> cluster-DB parquets, MSP, and the pre-existing cluster DB layout
-> expected by `--existing_cluster_db`) are documented in
-> [`docs/formats.md`](docs/formats.md).
+![SpectrafUSE Workflow](docs/images/spectrafuse_workflow.svg)
+
+> See [`docs/formats.md`](docs/formats.md) for the exact structure of every
+> file the pipeline reads and writes — QPX inputs, the `.dat` binary,
+> `.scan_titles.txt`, cluster-DB parquets, MSP, and the pre-existing cluster
+> DB layout expected by `--existing_cluster_db`.
 
 
 SpectrafUSE is a single pipeline. New QPX projects are always converted to MaRaCluster's `.dat` binary format (~100 bytes/spectrum), sliced into precursor m/z windows, clustered, and written to a cluster DB plus an MSP spectral library. If `--existing_cluster_db <path>` is supplied, representative spectra from that DB are extracted to `.dat` and clustered alongside the new data — the rest of the pipeline is identical, and the final step merges into the existing DB instead of writing a fresh one.
-
-```
-  (--existing_cluster_db)      ┌─ EXTRACT_REPS_DAT ─┐
-                               │                    │
-  new QPX projects ─────────── ├─ PARQUET_TO_DAT ───┤
-                               └────────────────────┴──┐
-                                                       ▼
-                                            CONCAT_DAT_FILES   (per species/[instrument]/charge)
-                                                       │
-                                                       ▼
-                                           SPLIT_MZ_WINDOWS    (default: 300 Da, 1 Da overlap)
-                                                       │
-                                                       ▼
-                                         RUN_MARACLUSTER_DAT   (parallel per window)
-                                                       │
-                                                       ▼
-                                           MERGE_MZ_WINDOWS    (reconcile overlap zones)
-                                                       │
-                                                       ▼
-                                 ┌──────────── cluster TSV + scan_titles ──────────┐
-                                 ▼                                                 ▼
-                      BUILD_CLUSTER_DB           ▲       GENERATE_MSP_FORMAT (*.msp.gz per partition)
-                      MERGE_INTO_EXISTING_DB     │
-                                (if --existing_cluster_db)
-```
 
 1. **Parquet → Dat** (`PARQUET_TO_DAT`): Converts PSM parquet files directly to MaRaCluster's binary `.dat` format. Replicates MaRaCluster's internal binning (`bin = floor(mz / 1.000508 + 0.32)`, top-40 peaks). ~100 bytes/spectrum.
 
