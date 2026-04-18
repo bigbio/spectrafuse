@@ -1,0 +1,181 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 880" width="820" height="880">
+  <defs>
+    <style>
+      .label     { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 13px; font-weight: 600; fill: #263238; }
+      .sublabel  { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 10.5px; fill: #78909C; }
+      .badge     { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 8.5px; font-weight: 700; fill: #fff; letter-spacing: 0.4px; }
+      .opt-badge { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 8.5px; font-weight: 700; fill: #fff; letter-spacing: 0.4px; }
+      .caption   { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 10.5px; font-style: italic; fill: #607D8B; }
+      .legend-title { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 11.5px; font-weight: 700; fill: #37474F; }
+      .legend-text  { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 10.5px; fill: #607D8B; }
+    </style>
+    <marker id="arrow-main" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#00897B"/>
+    </marker>
+    <marker id="arrow-opt" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9E9E9E"/>
+    </marker>
+    <marker id="arrow-out" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#F57C00"/>
+    </marker>
+  </defs>
+
+  <rect width="820" height="880" fill="#ffffff"/>
+
+  <!-- ══════ TITLE ══════ -->
+  <text x="410" y="34" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="19" font-weight="bold" fill="#263238">SpectrafUSE Pipeline</text>
+  <text x="410" y="52" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10.5" fill="#90A4AE">One workflow. --existing_cluster_db is just an optional extra input.</text>
+
+  <!-- ══════ LEGEND ══════ -->
+  <g transform="translate(620, 76)">
+    <rect x="-8" y="-14" width="192" height="88" rx="6" fill="#FAFAFA" stroke="#ECEFF1" stroke-width="1"/>
+    <text x="0" y="0" class="legend-title">LEGEND</text>
+    <circle cx="8" cy="18" r="6" fill="#00897B"/>
+    <text x="22" y="22" class="legend-text">Process</text>
+    <circle cx="8" cy="38" r="6" fill="none" stroke="#F57C00" stroke-width="2"/>
+    <text x="22" y="42" class="legend-text">Output</text>
+    <line x1="2" y1="58" x2="18" y2="58" stroke="#9E9E9E" stroke-width="2.5" stroke-dasharray="5,3"/>
+    <text x="22" y="62" class="legend-text">Optional (--existing_cluster_db)</text>
+  </g>
+
+  <!-- ══════════════════════════════════════════════════════════════════════════ -->
+  <!--                          INPUTS                                             -->
+  <!-- ══════════════════════════════════════════════════════════════════════════ -->
+
+  <!-- Primary input: QPX -->
+  <g transform="translate(410, 110)">
+    <circle cx="0" cy="0" r="9" fill="#1565C0" stroke="#fff" stroke-width="2"/>
+    <text x="16" y="-2" class="label" fill="#1565C0">QPX Parquet Projects</text>
+    <text x="16" y="14" class="sublabel">.psm.parquet · .run.parquet · .sample.parquet</text>
+  </g>
+
+  <!-- Optional input: existing cluster DB (left, dashed) -->
+  <g transform="translate(120, 110)">
+    <circle cx="0" cy="0" r="8" fill="none" stroke="#9E9E9E" stroke-width="2"/>
+    <text x="-14" y="-2" text-anchor="end" class="label" fill="#616161">--existing_cluster_db</text>
+    <text x="-14" y="14" text-anchor="end" class="sublabel">prior cluster_metadata.parquet</text>
+  </g>
+
+  <!-- ══════════════════════════════════════════════════════════════════════════ -->
+  <!--                          PER-SOURCE CONVERSION                              -->
+  <!-- ══════════════════════════════════════════════════════════════════════════ -->
+
+  <!-- QPX → PARQUET_TO_DAT -->
+  <line x1="410" y1="119" x2="410" y2="172" stroke="#00897B" stroke-width="3.5" stroke-linecap="round" marker-end="url(#arrow-main)"/>
+
+  <!-- existing_cluster_db → EXTRACT_REPS_DAT (dashed) -->
+  <line x1="120" y1="118" x2="120" y2="172" stroke="#9E9E9E" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="5,3" marker-end="url(#arrow-opt)"/>
+
+  <!-- EXTRACT_REPS_DAT (optional, dashed box) -->
+  <g transform="translate(120, 190)">
+    <circle cx="0" cy="0" r="9" fill="#ECEFF1" stroke="#9E9E9E" stroke-width="2" stroke-dasharray="3,2"/>
+    <rect x="-74" y="18" width="148" height="17" rx="3" fill="#9E9E9E"/>
+    <text x="0" y="31" text-anchor="middle" class="opt-badge">EXTRACT_REPS_DAT</text>
+    <text x="0" y="54" text-anchor="middle" class="sublabel">one consensus spectrum per cluster</text>
+    <text x="0" y="68" text-anchor="middle" class="sublabel" fill="#9E9E9E" font-style="italic">scan_title = rep:{cluster_id}</text>
+  </g>
+
+  <!-- PARQUET_TO_DAT -->
+  <g transform="translate(410, 190)">
+    <circle cx="0" cy="0" r="9" fill="#00897B" stroke="#fff" stroke-width="2"/>
+    <rect x="-74" y="18" width="148" height="17" rx="3" fill="#00897B"/>
+    <text x="0" y="31" text-anchor="middle" class="badge">PARQUET_TO_DAT</text>
+    <text x="0" y="54" text-anchor="middle" class="sublabel">~100 bytes/spectrum</text>
+    <text x="0" y="68" text-anchor="middle" class="sublabel">.dat + .scan_info + .scan_titles</text>
+  </g>
+
+  <!-- ══════════════════════════════════════════════════════════════════════════ -->
+  <!--                          SHARED CLUSTERING SPINE                            -->
+  <!-- ══════════════════════════════════════════════════════════════════════════ -->
+
+  <!-- Both conversions flow into CONCAT_DAT_FILES (center) -->
+  <path d="M 120,255 C 120,285 265,290 390,310" fill="none" stroke="#9E9E9E" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="5,3" marker-end="url(#arrow-opt)"/>
+  <line x1="410" y1="268" x2="410" y2="313" stroke="#00897B" stroke-width="3.5" stroke-linecap="round" marker-end="url(#arrow-main)"/>
+
+  <!-- Partition box subtle background -->
+  <rect x="120" y="325" width="580" height="445" rx="12" fill="#F5FBFA" stroke="#E0F2F1" stroke-width="1"/>
+  <text x="410" y="345" text-anchor="middle" class="caption">per partition — species / charge (or species / instrument / charge)</text>
+
+  <!-- CONCAT_DAT_FILES -->
+  <g transform="translate(410, 378)">
+    <circle cx="0" cy="0" r="9" fill="#00897B" stroke="#fff" stroke-width="2"/>
+    <rect x="-74" y="-33" width="148" height="17" rx="3" fill="#00897B"/>
+    <text x="0" y="-20" text-anchor="middle" class="badge">CONCAT_DAT_FILES</text>
+    <text x="16" y="-2" class="label">Concatenate .dat per charge</text>
+    <text x="16" y="14" class="sublabel">reps + new data, renumber scannr</text>
+  </g>
+  <line x1="410" y1="387" x2="410" y2="440" stroke="#00897B" stroke-width="3.5" stroke-linecap="round" marker-end="url(#arrow-main)"/>
+
+  <!-- SPLIT_MZ_WINDOWS -->
+  <g transform="translate(410, 458)">
+    <circle cx="0" cy="0" r="9" fill="#00897B" stroke="#fff" stroke-width="2"/>
+    <rect x="-74" y="-33" width="148" height="17" rx="3" fill="#00897B"/>
+    <text x="0" y="-20" text-anchor="middle" class="badge">SPLIT_MZ_WINDOWS</text>
+    <text x="16" y="-2" class="label">m/z windowing</text>
+    <text x="16" y="14" class="sublabel">300 Da windows, 1 Da overlap</text>
+  </g>
+  <line x1="410" y1="467" x2="410" y2="520" stroke="#00897B" stroke-width="3.5" stroke-linecap="round" marker-end="url(#arrow-main)"/>
+
+  <!-- RUN_MARACLUSTER_DAT (parallel fan-out) -->
+  <g transform="translate(410, 538)">
+    <circle cx="0" cy="0" r="9" fill="#00897B" stroke="#fff" stroke-width="2"/>
+    <circle cx="-22" cy="0" r="5" fill="#00897B" opacity="0.35"/>
+    <circle cx="-44" cy="0" r="4" fill="#00897B" opacity="0.2"/>
+    <circle cx="22" cy="0" r="5" fill="#00897B" opacity="0.35"/>
+    <circle cx="44" cy="0" r="4" fill="#00897B" opacity="0.2"/>
+    <rect x="-74" y="-33" width="148" height="17" rx="3" fill="#00897B"/>
+    <text x="0" y="-20" text-anchor="middle" class="badge">RUN_MARACLUSTER_DAT</text>
+    <text x="60" y="-2" class="label">MaRaCluster per window</text>
+    <text x="60" y="14" class="sublabel">parallel — one task per window</text>
+  </g>
+  <line x1="410" y1="547" x2="410" y2="600" stroke="#00897B" stroke-width="3.5" stroke-linecap="round" marker-end="url(#arrow-main)"/>
+
+  <!-- MERGE_MZ_WINDOWS -->
+  <g transform="translate(410, 618)">
+    <circle cx="0" cy="0" r="9" fill="#00897B" stroke="#fff" stroke-width="2"/>
+    <rect x="-74" y="-33" width="148" height="17" rx="3" fill="#00897B"/>
+    <text x="0" y="-20" text-anchor="middle" class="badge">MERGE_MZ_WINDOWS</text>
+    <text x="16" y="-2" class="label">Reconcile overlap zones</text>
+    <text x="16" y="14" class="sublabel">deterministic lowest-window wins</text>
+  </g>
+  <line x1="410" y1="627" x2="410" y2="680" stroke="#00897B" stroke-width="3.5" stroke-linecap="round" marker-end="url(#arrow-main)"/>
+
+  <!-- BUILD_CLUSTER_DB (or MERGE_INTO_EXISTING_DB) -->
+  <g transform="translate(410, 698)">
+    <circle cx="0" cy="0" r="9" fill="#00897B" stroke="#fff" stroke-width="2"/>
+    <rect x="-118" y="-33" width="236" height="17" rx="3" fill="#00897B"/>
+    <text x="0" y="-20" text-anchor="middle" class="badge">BUILD_CLUSTER_DB  /  MERGE_INTO_EXISTING_DB</text>
+    <text x="16" y="-2" class="label">Build cluster DB</text>
+    <text x="16" y="14" class="sublabel">resolve rep: cluster_ids; is_reused_cluster + source_datasets</text>
+  </g>
+
+  <!-- ══════════════════════════════════════════════════════════════════════════ -->
+  <!--                          OUTPUTS                                            -->
+  <!-- ══════════════════════════════════════════════════════════════════════════ -->
+
+  <!-- Split the flow into cluster DB + MSP outputs. GENERATE_MSP_FORMAT reads the
+       same merged-clusters + scan_titles, so show it as a sibling of the DB step. -->
+  <path d="M 410,707 C 410,750 290,770 230,790" fill="none" stroke="#F57C00" stroke-width="3" stroke-linecap="round" marker-end="url(#arrow-out)"/>
+  <path d="M 410,707 C 410,750 530,770 590,790" fill="none" stroke="#F57C00" stroke-width="3" stroke-linecap="round" marker-end="url(#arrow-out)"/>
+
+  <!-- Output 1: Cluster DB -->
+  <g transform="translate(230, 810)">
+    <circle cx="0" cy="0" r="8" fill="none" stroke="#F57C00" stroke-width="2.5"/>
+    <text x="16" y="-2" class="label" fill="#F57C00">Cluster DB</text>
+    <text x="16" y="14" class="sublabel">cluster_metadata.parquet</text>
+    <text x="16" y="28" class="sublabel">psm_cluster_membership.parquet</text>
+    <text x="16" y="42" class="sublabel" fill="#F57C00" font-style="italic">partitioned by species/[instrument]/charge</text>
+  </g>
+
+  <!-- Output 2: MSP library -->
+  <g transform="translate(590, 810)">
+    <circle cx="0" cy="0" r="8" fill="none" stroke="#F57C00" stroke-width="2.5"/>
+    <text x="16" y="-2" class="label" fill="#F57C00">MSP Library</text>
+    <text x="16" y="14" class="sublabel">via GENERATE_MSP_FORMAT</text>
+    <text x="16" y="28" class="sublabel">*.msp.gz per partition</text>
+  </g>
+
+  <!-- Footer -->
+  <text x="410" y="866" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" fill="#B0BEC5">SpectrafUSE — Nextflow DSL2 · bigbio/spectrafuse</text>
+
+</svg>
