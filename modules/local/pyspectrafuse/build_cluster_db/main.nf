@@ -8,8 +8,8 @@ process BUILD_CLUSTER_DB {
     }, mode: params.publish_dir_mode, pattern: "cluster_db/*.parquet"
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.4' :
-        'ghcr.io/bigbio/pyspectrafuse:0.0.4' }"
+        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.5' :
+        'ghcr.io/bigbio/pyspectrafuse:0.0.5' }"
 
     containerOptions = workflow.containerEngine == 'singularity' ?
         '--env NUMBA_DISABLE_JIT=1 --env NUMBA_DISABLE_CACHING=1 --env NUMBA_CACHE_DIR=/tmp' :
@@ -52,7 +52,7 @@ process BUILD_CLUSTER_DB {
         --output_dir cluster_db \
         ${args}
 
-    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.4")
+    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.5")
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
@@ -72,8 +72,8 @@ process MERGE_INTO_EXISTING_DB {
     }, mode: params.publish_dir_mode, pattern: "cluster_db/*.parquet"
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.4' :
-        'ghcr.io/bigbio/pyspectrafuse:0.0.4' }"
+        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.5' :
+        'ghcr.io/bigbio/pyspectrafuse:0.0.5' }"
 
     containerOptions = workflow.containerEngine == 'singularity' ?
         '--env NUMBA_DISABLE_JIT=1 --env NUMBA_DISABLE_CACHING=1 --env NUMBA_CACHE_DIR=/tmp' :
@@ -118,7 +118,7 @@ process MERGE_INTO_EXISTING_DB {
         --output_dir cluster_db \
         ${args}
 
-    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.4")
+    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.5")
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

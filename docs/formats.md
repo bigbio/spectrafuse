@@ -7,6 +7,7 @@ is the source of truth for what bytes and columns must be present.
 Contents:
 
 - [1. QPX input parquets](#1-qpx-input-parquets)
+- [1b. mzML no-ID inputs](#1b-mzml-no-id-inputs)
 - [2. Internal pipeline artifacts](#2-internal-pipeline-artifacts)
   - [2.1 MaRaCluster `.dat` + `.scan_info.dat` (binary)](#21-maracluster-dat--scan_infodat-binary)
   - [2.2 `.scan_titles.txt` (tab-separated text)](#22-scan_titlestxt-tab-separated-text)
@@ -14,6 +15,7 @@ Contents:
 - [3. Cluster DB outputs (parquet)](#3-cluster-db-outputs-parquet)
   - [3.1 `cluster_metadata.parquet`](#31-cluster_metadataparquet)
   - [3.2 `psm_cluster_membership.parquet`](#32-psm_cluster_membershipparquet)
+- [3b. no-ID cluster DB outputs](#3b-no-id-cluster-db-outputs)
 - [4. MSP consensus spectral library](#4-msp-consensus-spectral-library)
 - [5. Pre-existing cluster DB directory (for `--existing_cluster_db`)](#5-pre-existing-cluster-db-directory-for---existing_cluster_db)
 - [6. USI convention](#6-usi-convention)
@@ -118,6 +120,35 @@ time; never read during clustering.
 
 ---
 
+## 1b. mzML no-ID inputs
+
+The mzML branch consumes raw MS2 spectra directly from `.mzML` files. It reads
+precursor m/z, charge, scan number, retention time, and fragment peak arrays,
+but no peptide identification, PEP, q-value, purity, or search-engine fields.
+
+`--dataset_name` is required. When `--sdrf` is provided, species and instrument
+come from `characteristics[organism]` and `comment[instrument]`; missing values
+fall back to `--default_species`, `--default_instrument`, then `Unknown`.
+
+The converter emits a spectrum sidecar parquet per partition:
+
+| column | type | description |
+|---|---|---|
+| `scannr` | int32 | scan index inside the final charge `.dat` |
+| `usi` | string | no-ID USI |
+| `project_accession` | string | dataset accession |
+| `reference_file_name` | string | mzML filename |
+| `scan` | int32 | original scan number |
+| `charge` | int8 | precursor charge |
+| `precursor_mz` | float64 | precursor m/z |
+| `retention_time` | float64 | retention time |
+| `mz_array` | `list<float32>` | fragment m/z values |
+| `intensity_array` | `list<float32>` | fragment intensities |
+| `species` | string | partition species |
+| `instrument` | string | partition instrument |
+
+---
+
 ## 2. Internal pipeline artifacts
 
 These files live in the Nextflow work directory during a run. They are the
@@ -177,8 +208,8 @@ identity. One line per spectrum; three tab-separated columns. No header.
 <file_idx> <TAB> <scannr> <TAB> <title>
 ```
 
-Two title flavors — both appear in the same file when reps and new data
-are clustered together:
+Three title flavors are used across the two workflow modes; representative
+titles can appear alongside either new-data flavor during incremental runs:
 
 **New-data title** — written by `PARQUET_TO_DAT`:
 ```
@@ -190,6 +221,16 @@ Example (from `test_output/PXD014877/dat_output/PXD014877.psm_charge2.scan_title
 0	0	id=mzspec::20181127_QX1_JoMu_SA_Easy12-7_uPAC_500ng_MycoplasmeniRT:scan:186253:DISPLLANGEVLNYTINQMAELAK/2
 0	1	id=mzspec::20181127_QX1_JoMu_SA_Easy12-7_uPAC_500ng_MycoplasmeniRT:scan:142531:GYQTIDLGPDTDQQPSSYAFYGK/2
 0	2	id=mzspec::20181127_QX1_JoMu_SA_Easy12-7_uPAC_500ng_MycoplasmeniRT:scan:122629:M[Oxidation]VVAEIEEGM[Oxidation]DEYNYSGPVVK/2
+```
+
+**mzML no-ID title**:
+```text
+id=mzspec::<mzml_file_name>:scan:<orig_scan>:charge<z>
+```
+
+Example:
+```text
+0	0	id=mzspec::Phospho_redissolve_final_01.mzML:scan:7193:charge6
 ```
 
 **Representative title** — written by `EXTRACT_REPS_DAT` for each consensus
@@ -291,6 +332,49 @@ One row per PSM. Grows monotonically with each round (dedup by USI).
 
 ---
 
+## 3b. no-ID cluster DB outputs
+
+The mzML branch writes a separate no-ID DB and never mixes it with peptide-ID
+cluster DBs.
+
+### 3b.1 `cluster_metadata.parquet`
+
+| column | type | description |
+|---|---|---|
+| `cluster_id` | string | stable UUID |
+| `species` | string | partition species |
+| `instrument` | string | partition instrument |
+| `charge` | int8 | partition charge |
+| `consensus_mz_array` | `list<float32>` | consensus fragment m/z |
+| `consensus_intensity_array` | `list<float32>` | consensus fragment intensities |
+| `consensus_method` | string | `most`, `bin`, or `average` |
+| `precursor_mz` | float64 | consensus precursor m/z |
+| `member_count` | int32 | member spectra in the cluster |
+| `project_count` | int16 | distinct contributing datasets |
+| `cluster_quality_ratio` | float64 | fraction of passing sampled spectrum pairs |
+| `mean_similarity` | float64 | mean sampled binary-bin cosine similarity |
+| `is_reused_cluster` | bool | inherited from prior no-ID DB |
+| `source_datasets` | `list<string>` | contributing dataset accessions |
+
+No-ID metadata intentionally omits `peptidoform`, `peptide_sequence`,
+`best_pep`, `best_qvalue`, and `purity`.
+
+### 3b.2 `spectrum_cluster_membership.parquet`
+
+| column | type | description |
+|---|---|---|
+| `cluster_id` | string | FK to no-ID cluster metadata |
+| `usi` | string | no-ID spectrum identifier |
+| `project_accession` | string | source dataset |
+| `reference_file_name` | string | mzML filename |
+| `scan` | int32 | original scan number |
+| `charge` | int8 | precursor charge |
+| `precursor_mz` | float64 | precursor m/z |
+| `species` | string | partition species |
+| `instrument` | string | partition instrument |
+
+---
+
 ## 4. MSP consensus spectral library
 
 `GENERATE_MSP_FORMAT` writes one gzipped MSP file per partition:
@@ -339,6 +423,17 @@ Num peaks: 160
 - Gzipped stream: multiple `.gz` writes concatenate into a valid gzip file
   (see `MspUtil.write2msp`).
 
+The mzML no-ID MSP variant keeps the same shell but replaces peptide-scored
+fields:
+
+```text
+Name: <cluster_id>
+MW: <precursor_mz>
+Comment: clusterID=<cluster_id> Nreps=<N> qualityRatio=<ratio>
+Num peaks: <N>
+<mz> <intensity>
+```
+
 ---
 
 ## 5. Pre-existing cluster DB directory (for `--existing_cluster_db`)
@@ -367,6 +462,11 @@ before the provenance columns were added is forward-compatible: missing
 `is_reused_cluster` / `source_datasets` columns will be populated on the
 first merge.
 
+For mzML no-ID incremental mode, each partition contains
+`spectrum_cluster_membership.parquet` instead of
+`psm_cluster_membership.parquet`. Peptide-ID DBs are rejected rather than mixed
+into the no-ID quality system.
+
 ---
 
 ## 6. USI convention
@@ -390,6 +490,12 @@ accession embedded). The project accession is attached during the
 USI is written into `psm_cluster_membership.parquet`. If you construct
 USIs yourself, use the project-aware form above.
 
+The mzML no-ID branch uses the peptide-free form:
+
+```text
+mzspec:<dataset_name>:<mzml_file_name>:scan:<scan>:charge<z>
+```
+
 ---
 
 ## 7. Format responsibility map
@@ -397,13 +503,17 @@ USIs yourself, use the project-aware form above.
 | Format | Produced by | Consumed by |
 |---|---|---|
 | `*.psm.parquet` | upstream quantms / `convert-to-qpx` | `PARQUET_TO_DAT`, `BUILD_CLUSTER_DB`, `GENERATE_MSP_FORMAT` |
+| `*.mzML` | raw acquisition files | `MZML_TO_DAT` |
 | `*.run.parquet`, `*.sample.parquet` | upstream quantms / `convert-to-qpx` | `qpx_metadata.get_metadata_dict` |
-| `.dat`, `.scan_info.dat` | `PARQUET_TO_DAT`, `EXTRACT_REPS_DAT`, `CONCAT_DAT_FILES` | `RUN_MARACLUSTER_DAT` (via `-D`) |
-| `.scan_titles.txt` | `PARQUET_TO_DAT`, `EXTRACT_REPS_DAT`, `CONCAT_DAT_FILES` | `BUILD_CLUSTER_DB`, `MERGE_INTO_EXISTING_DB`, `GENERATE_MSP_FORMAT` |
+| `.dat`, `.scan_info.dat` | `PARQUET_TO_DAT`, `MZML_TO_DAT`, `EXTRACT_REPS_DAT`, concat helpers | `RUN_MARACLUSTER_DAT` (via `-D`) |
+| `.scan_titles.txt` | `PARQUET_TO_DAT`, `MZML_TO_DAT`, `EXTRACT_REPS_DAT`, concat helpers | DB builders and MSP generators |
 | MaRaCluster `_p30.tsv` | `RUN_MARACLUSTER_DAT` | `MERGE_MZ_WINDOWS`, `BUILD_CLUSTER_DB`, `GENERATE_MSP_FORMAT` |
 | `cluster_metadata.parquet` | `BUILD_CLUSTER_DB` / `MERGE_INTO_EXISTING_DB` | `EXTRACT_REPS_DAT` next round; downstream users |
 | `psm_cluster_membership.parquet` | `BUILD_CLUSTER_DB` / `MERGE_INTO_EXISTING_DB` | `MERGE_INTO_EXISTING_DB` next round; downstream users |
 | `*.msp.gz` | `GENERATE_MSP_FORMAT` | spectral library search tools (Comet/MSPepSearch/etc.) |
+| `noid_cluster_db/.../cluster_metadata.parquet` | `BUILD_NOID_CLUSTER_DB` / `MERGE_INTO_EXISTING_NOID_DB` | `EXTRACT_REPS_DAT` next no-ID round; downstream users |
+| `noid_cluster_db/.../spectrum_cluster_membership.parquet` | `BUILD_NOID_CLUSTER_DB` / `MERGE_INTO_EXISTING_NOID_DB` | `MERGE_INTO_EXISTING_NOID_DB` next round; downstream users |
+| `noid_msp_files/**/*.msp.gz` | `GENERATE_NOID_MSP` | downstream spectral-library consumers |
 
 Every claim in this document is traceable to code in
 `pyspectrafuse-lib/pyspectrafuse/`. If a field or filename here ever

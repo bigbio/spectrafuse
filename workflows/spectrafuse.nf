@@ -350,8 +350,8 @@ process CONCAT_DAT_FILES {
     tag { meta.id }
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.4' :
-        'ghcr.io/bigbio/pyspectrafuse:0.0.4' }"
+        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.5' :
+        'ghcr.io/bigbio/pyspectrafuse:0.0.5' }"
 
     input:
     tuple val(meta), path(dat_files), path(scaninfo_files), path(titles_files)
@@ -430,7 +430,7 @@ out_si.close()
 out_titles.close()
 PYEOF
 
-    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.4")
+    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.5")
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
