@@ -344,11 +344,20 @@ workflow SPECTRAFUSE {
         if (has_existing) {
             error "--reduce_psm works on freshly clustered projects; it cannot be combined with --existing_cluster_db"
         }
-        ch_all_tsvs   = MERGE_MZ_WINDOWS.out.merged_clusters.map { _meta, tsv -> tsv }.collect().map { tsvs -> [tsvs] }
-        ch_all_titles = ch_all_grouped_titles.map { _charge, titles -> titles }.flatten().collect().map { titles -> [titles] }
+        ch_all_tsvs   = MERGE_MZ_WINDOWS.out.merged_clusters
+            .toSortedList { a, b -> a[0].charge <=> b[0].charge }
+            .map { l -> [ l.collect { it[1] } ] }
+        ch_all_titles = ch_all_grouped_titles.map { _charge, titles -> titles }.flatten()
+            .toSortedList { a, b -> a.name <=> b.name }
+            .map { titles -> [titles] }
         REDUCE_PSM(
-            ch_projects
-                .map { project_dir -> [ [ id: project_dir.name ], project_dir ] }
+            ch_projects.collect()
+                .map { dirs ->
+                    if (dirs.size() != 1) {
+                        error "--reduce_psm needs exactly one project in --parquet_dir (found ${dirs.size()})"
+                    }
+                    [ [ id: dirs[0].baseName ], dirs[0] ]
+                }
                 .combine(ch_all_tsvs)
                 .combine(ch_all_titles)
         )

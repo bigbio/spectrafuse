@@ -37,7 +37,7 @@ process PARQUET_TO_DAT {
             --file_idx ${meta.file_idx ?: 0} \
             --combine \
             ${thin} \
-            ${args} || true
+            ${args}
     done
 
     # Verify at least some output was produced

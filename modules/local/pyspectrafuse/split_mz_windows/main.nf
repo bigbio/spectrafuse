@@ -19,7 +19,6 @@ process SPLIT_MZ_WINDOWS {
     script:
     def window_size = params.mz_window_size ?: 300
     def window_overlap = params.mz_window_overlap ?: 1.0
-    def max_spectra = params.mz_window_max_spectra ?: 'None'
 
     """
     python3 << 'PYEOF'
@@ -33,7 +32,6 @@ results = split_dat_by_mz_window(
     output_dir='windows',
     window_size=${window_size},
     window_overlap=${window_overlap},
-    max_spectra_per_window=${max_spectra},
 )
 
 # Write manifest for downstream grouping
