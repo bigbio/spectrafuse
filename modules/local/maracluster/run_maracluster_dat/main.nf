@@ -3,7 +3,7 @@ process RUN_MARACLUSTER_DAT {
     tag { meta.id }
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://containers.biocontainers.pro/s3/SingImgsRepo/maracluster/1.04.1_cv1/maracluster_1.04.1_cv1.sif' :
+        'docker://biocontainers/maracluster:1.04.1_cv1' :
         'docker.io/biocontainers/maracluster:1.04.1_cv1' }"
 
     input:

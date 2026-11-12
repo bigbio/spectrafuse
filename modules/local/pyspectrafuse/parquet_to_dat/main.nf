@@ -3,8 +3,8 @@ process PARQUET_TO_DAT {
     tag { meta.id }
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.5' :
-        'ghcr.io/bigbio/pyspectrafuse:0.0.5' }"
+        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.6' :
+        'ghcr.io/bigbio/pyspectrafuse:0.0.6' }"
 
     containerOptions = workflow.containerEngine == 'singularity' ?
         '--env NUMBA_DISABLE_JIT=1 --env NUMBA_DISABLE_CACHING=1 --env NUMBA_CACHE_DIR=/tmp' :
@@ -34,6 +34,7 @@ process PARQUET_TO_DAT {
             -o dat_output \
             -c \$charge \
             --file_idx ${meta.file_idx ?: 0} \
+            --combine \
             ${args} || true
     done
 
@@ -45,7 +46,7 @@ process PARQUET_TO_DAT {
     fi
     echo "Produced \$dat_count charge-specific .dat files"
 
-    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.5")
+    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.6")
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

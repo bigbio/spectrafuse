@@ -143,6 +143,22 @@ nextflow run main.nf \
     -profile docker
 ```
 
+### One reduced psm file per project (ID-based, e.g. MSNet)
+
+Clusters every PSM of each project and writes `<outdir>/reduced/<project>.psm.parquet` (same qpx psm
+schema, see `pyspectrafuse reduce-psm`); the cluster DB and MSP library are skipped. A project folder may
+hold several `.psm.parquet` parts. Run one project per `--parquet_dir` so projects are not clustered together.
+
+```bash
+nextflow run main.nf \
+    --parquet_dir /path/to/one_project_parent \
+    -profile msnet_reduce,docker
+```
+
+Parameters: `--reduce_max_rows_per_pfz` (30), `--reduce_majority` (0.8), `--reduce_weak_filter` (false; only for replicate-run projects),
+`--reduce_weak_max_runs` (2), `--reduce_weak_min_series` (4); `--skip_cluster_db` and `--skip_msp` can also be
+used on their own.
+
 ### Resume a Previous Run
 
 ```bash
