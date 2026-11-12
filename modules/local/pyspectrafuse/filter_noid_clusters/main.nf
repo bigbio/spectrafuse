@@ -3,8 +3,8 @@ process FILTER_NOID_CLUSTERS {
     tag { meta.id }
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.5' :
-        'ghcr.io/bigbio/pyspectrafuse:0.0.5' }"
+        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.6' :
+        'ghcr.io/bigbio/pyspectrafuse:0.0.6' }"
 
     input:
     tuple val(meta), path(cluster_tsv), path(dat_file)
@@ -27,7 +27,7 @@ process FILTER_NOID_CLUSTERS {
         --min_cluster_size ${params.noid_min_cluster_size} \
         --max_pairs_per_cluster ${params.noid_max_pairs_per_cluster}
 
-    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.5")
+    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.6")
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

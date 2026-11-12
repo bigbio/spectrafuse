@@ -25,6 +25,7 @@ include { MERGE_MZ_WINDOWS }     from '../modules/local/pyspectrafuse/merge_mz_w
 include { BUILD_CLUSTER_DB; MERGE_INTO_EXISTING_DB } from '../modules/local/pyspectrafuse/build_cluster_db/main'
 include { GENERATE_MSP_FORMAT }  from '../modules/local/pyspectrafuse/generate_msp_format/main'
 include { EXTRACT_REPS_DAT }     from '../modules/local/pyspectrafuse/extract_representatives_dat/main'
+include { REDUCE_PSM }           from '../modules/local/pyspectrafuse/reduce_psm/main'
 
 
 workflow SPECTRAFUSE {
@@ -305,7 +306,9 @@ workflow SPECTRAFUSE {
 
     ch_project_dirs = ch_projects.collect()
 
-    if (has_existing) {
+    if (params.skip_cluster_db) {
+        ch_cluster_meta = channel.empty()
+    } else if (has_existing) {
         ch_db_input
             .map { meta, tsv, titles -> [meta.charge, meta, tsv, titles] }
             .join(ch_existing_db.map { meta, mf, mem -> [meta.charge, mf, mem] })
@@ -324,15 +327,47 @@ workflow SPECTRAFUSE {
     }
 
     // ════════════════════════════════════════════════════════════════════
-    // Step 8: always generate MSP spectral library
+    // Step 8: MSP spectral library (optional)
     // ════════════════════════════════════════════════════════════════════
-    GENERATE_MSP_FORMAT(ch_db_input, ch_parquet_dir)
-    ch_versions = ch_versions.mix(GENERATE_MSP_FORMAT.out.versions)
+    if (params.skip_msp) {
+        ch_msp = channel.empty()
+    } else {
+        GENERATE_MSP_FORMAT(ch_db_input, ch_parquet_dir)
+        ch_msp      = GENERATE_MSP_FORMAT.out.msp_files
+        ch_versions = ch_versions.mix(GENERATE_MSP_FORMAT.out.versions)
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // Step 9 (optional): one reduced qpx psm file per project
+    // ════════════════════════════════════════════════════════════════════
+    if (params.reduce_psm) {
+        if (has_existing) {
+            error "--reduce_psm works on freshly clustered projects; it cannot be combined with --existing_cluster_db"
+        }
+        ch_all_tsvs   = MERGE_MZ_WINDOWS.out.merged_clusters
+            .toSortedList { a, b -> a[0].charge <=> b[0].charge }
+            .map { l -> [ l.collect { it[1] } ] }
+        ch_all_titles = ch_all_grouped_titles.map { _charge, titles -> titles }.flatten()
+            .toSortedList { a, b -> a.name <=> b.name }
+            .map { titles -> [titles] }
+        REDUCE_PSM(
+            ch_projects.collect()
+                .map { dirs ->
+                    if (dirs.size() != 1) {
+                        error "--reduce_psm needs exactly one project in --parquet_dir (found ${dirs.size()})"
+                    }
+                    [ [ id: dirs[0].baseName ], dirs[0] ]
+                }
+                .combine(ch_all_tsvs)
+                .combine(ch_all_titles)
+        )
+        ch_versions = ch_versions.mix(REDUCE_PSM.out.versions)
+    }
 
     emit:
     maracluster_results = MERGE_MZ_WINDOWS.out.merged_clusters
     cluster_parquet     = ch_cluster_meta
-    msp_files           = GENERATE_MSP_FORMAT.out.msp_files
+    msp_files           = ch_msp
     versions            = ch_versions
 }
 
@@ -350,8 +385,8 @@ process CONCAT_DAT_FILES {
     tag { meta.id }
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.5' :
-        'ghcr.io/bigbio/pyspectrafuse:0.0.5' }"
+        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.6' :
+        'ghcr.io/bigbio/pyspectrafuse:0.0.6' }"
 
     input:
     tuple val(meta), path(dat_files), path(scaninfo_files), path(titles_files)
@@ -430,7 +465,7 @@ out_si.close()
 out_titles.close()
 PYEOF
 
-    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.5")
+    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.6")
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

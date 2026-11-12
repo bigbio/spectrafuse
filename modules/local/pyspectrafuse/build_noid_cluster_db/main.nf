@@ -8,8 +8,8 @@ process BUILD_NOID_CLUSTER_DB {
     }, mode: params.publish_dir_mode, pattern: "noid_cluster_db/*.parquet"
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.5' :
-        'ghcr.io/bigbio/pyspectrafuse:0.0.5' }"
+        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.6' :
+        'ghcr.io/bigbio/pyspectrafuse:0.0.6' }"
 
     input:
     tuple val(meta), path(cluster_tsv), path(metrics_tsv), path(spectra_parquet)
@@ -32,7 +32,7 @@ process BUILD_NOID_CLUSTER_DB {
         --method_type "${method_type}" \
         --output_dir noid_cluster_db
 
-    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.5")
+    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.6")
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
@@ -52,8 +52,8 @@ process MERGE_INTO_EXISTING_NOID_DB {
     }, mode: params.publish_dir_mode, pattern: "noid_cluster_db/*.parquet"
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.5' :
-        'ghcr.io/bigbio/pyspectrafuse:0.0.5' }"
+        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.6' :
+        'ghcr.io/bigbio/pyspectrafuse:0.0.6' }"
 
     input:
     tuple val(meta), path(cluster_tsv), path(metrics_tsv), path(scan_titles), path(spectra_parquet), path(existing_metadata), path(existing_membership)
@@ -83,7 +83,7 @@ process MERGE_INTO_EXISTING_NOID_DB {
         --existing_membership ${existing_membership} \
         --output_dir noid_cluster_db
 
-    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.5")
+    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.6")
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

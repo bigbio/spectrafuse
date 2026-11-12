@@ -4,8 +4,8 @@ process GENERATE_MSP_FORMAT {
     publishDir "${params.outdir}/msp_files", mode: params.publish_dir_mode, pattern: "**/*.msp{,.gz}"
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.5' :
-        'ghcr.io/bigbio/pyspectrafuse:0.0.5' }"
+        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.6' :
+        'ghcr.io/bigbio/pyspectrafuse:0.0.6' }"
 
     // Additional environment variables for Numba in containers
     // Disable JIT and caching to prevent issues when running as non-root user
@@ -57,7 +57,7 @@ process GENERATE_MSP_FORMAT {
         ${args}
 
     # Get pyspectrafuse version dynamically
-    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.5")
+    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.6")
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

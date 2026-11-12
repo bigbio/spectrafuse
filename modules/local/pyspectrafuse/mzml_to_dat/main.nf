@@ -3,8 +3,8 @@ process MZML_TO_DAT {
     tag { params.dataset_name ?: 'mzml' }
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.5' :
-        'ghcr.io/bigbio/pyspectrafuse:0.0.5' }"
+        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.6' :
+        'ghcr.io/bigbio/pyspectrafuse:0.0.6' }"
 
     input:
     path mzml_dir
@@ -35,7 +35,7 @@ process MZML_TO_DAT {
         ${skip_inst_arg} \
         ${args}
 
-    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.5")
+    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.6")
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

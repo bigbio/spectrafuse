@@ -3,8 +3,8 @@ process SPLIT_MZ_WINDOWS {
     tag { meta.id }
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.5' :
-        'ghcr.io/bigbio/pyspectrafuse:0.0.5' }"
+        'docker://ghcr.io/bigbio/pyspectrafuse:0.0.6' :
+        'ghcr.io/bigbio/pyspectrafuse:0.0.6' }"
 
     input:
     tuple val(meta), path(dat_file), path(scaninfo_file), path(titles_file)
@@ -41,7 +41,7 @@ with open('windows/window_manifest.tsv', 'w') as f:
         f.write(f'{r["window_idx"]}\\t{r["mz_min"]}\\t{r["mz_max"]}\\t{r["dat_path"]}\\t{r["titles_path"]}\\t{r["n_spectra"]}\\n')
 PYEOF
 
-    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.5")
+    PYSPECTRAFUSE_VERSION=\$(pyspectrafuse --version 2>&1 | sed 's/.*version //g' || echo "0.0.6")
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
