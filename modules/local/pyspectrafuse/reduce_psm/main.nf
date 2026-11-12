@@ -21,6 +21,7 @@ process REDUCE_PSM {
     def duckdb_mem  = Math.max(1, (task.memory.toGiga() * 0.7) as int)
     def weak        = params.reduce_weak_filter ? '--weak-filter' : '--no-weak-filter'
     def args        = task.ext.args ?: ''
+    def thin        = params.cluster_max_psms_per_pfz ? "--max-psms-per-pfz-clustered ${params.cluster_max_psms_per_pfz}" : ''
     """
     export SPECTRAFUSE_DUCKDB_TEMP_DIR=\$PWD/duckdb_tmp
     pyspectrafuse reduce-psm \\
@@ -33,6 +34,7 @@ process REDUCE_PSM {
         --weak-max-runs ${params.reduce_weak_max_runs} \\
         --weak-min-series ${params.reduce_weak_min_series} \\
         ${weak} \\
+        ${thin} \\
         --method "MaRaCluster 1.04.1 via spectrafuse, p${params.cluster_threshold}, per charge" \\
         --memory ${duckdb_mem}GB \\
         --threads ${task.cpus} \\

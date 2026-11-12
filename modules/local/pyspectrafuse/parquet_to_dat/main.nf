@@ -21,6 +21,7 @@ process PARQUET_TO_DAT {
 
     script:
     def args = task.ext.args ?: ''
+    def thin = params.cluster_max_psms_per_pfz ? "--max-psms-per-pfz ${params.cluster_max_psms_per_pfz}" : ''
 
     """
     export NUMBA_DISABLE_JIT=1
@@ -35,6 +36,7 @@ process PARQUET_TO_DAT {
             -c \$charge \
             --file_idx ${meta.file_idx ?: 0} \
             --combine \
+            ${thin} \
             ${args} || true
     done
 
